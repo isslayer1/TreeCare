@@ -84,7 +84,7 @@ export const Layout = () => {
             <span className="font-bold text-lg text-emerald-900">TreeTrack</span>
         </header>
 
-        <main className="flex-1 p-4 md:p-8 pb-20 md:pb-8 overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-8 pb-32 md:pb-8 overflow-x-hidden">
           <Outlet />
         </main>
       </div>

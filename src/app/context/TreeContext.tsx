@@ -37,7 +37,10 @@ export const useTreeContext = () => {
   return context;
 };
 
-const API_BASE = 'http://localhost:8080/api';
+// Point the frontend to the backend running on the same host (works for localhost and LAN IP)
+const API_BASE =
+  (import.meta as any)?.env?.VITE_API_BASE ||
+  `http://${window.location.hostname}:8080/api`;
 
 // Mock initial data - Only Olives as requested
 const initialData: TreeRecord[] = [

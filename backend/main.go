@@ -100,16 +100,19 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// CORS configuration to allow your frontend origins.
+	// CORS configuration to allow your frontend from localhost and LAN IPs.
 	corsMiddleware := cors.New(cors.Options{
-		AllowOrigins: []string{
+		AllowedOrigins: []string{
 			"http://localhost:5173",
 			"http://127.0.0.1:5173",
-			"http://192.168.69.251:5173", // your current LAN IP
 		},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept"},
-		ExposeHeaders:    []string{"Content-Length"},
+		// Additionally allow any origin by echoing it back.
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept"},
+		ExposedHeaders:   []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           int((12 * time.Hour).Seconds()),
 	})
