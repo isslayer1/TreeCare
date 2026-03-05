@@ -1,15 +1,43 @@
-import React, { useState, useRef } from 'react';
-import { Upload, Calendar, CheckCircle, XCircle, FileText, Download } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Upload, Calendar, CheckCircle, XCircle, FileText, Download, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useTreeContext, WateringScheduleEntry } from '../context/TreeContext';
 import { Card } from '../components/ui/card';
 
 export const WateringCalendar = () => {
-  const { wateringSchedule, setWateringSchedule } = useTreeContext();
+  const { wateringSchedule, loadWateringSchedule, refreshWateringMonths, saveWateringSchedule, clearWateringScheduleMonth, wateringMonths } = useTreeContext();
   const [dragActive, setDragActive] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const currentMonth = useMemo(() => {
+    const now = new Date();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${m}`;
+  }, []);
+
+  const monthOptions = useMemo(() => {
+    const set = new Set([currentMonth, ...(wateringMonths || [])]);
+    return Array.from(set).filter(Boolean).sort();
+  }, [currentMonth, wateringMonths]);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      const months = await refreshWateringMonths();
+      const options = Array.from(new Set([currentMonth, ...months])).filter(Boolean).sort();
+      const initial = options.includes(currentMonth) ? currentMonth : options[options.length - 1] || currentMonth;
+      setSelectedMonth(initial);
+      await loadWateringSchedule(initial);
+      setIsLoading(false);
+    })();
+    // We intentionally run this only once on mount so the month list
+    // isn't re-fetched on every render when context callbacks change identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -57,7 +85,7 @@ export const WateringCalendar = () => {
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const text = e.target?.result as string;
         const schedule = parseCSV(text);
@@ -67,13 +95,24 @@ export const WateringCalendar = () => {
           setErrorMessage('No valid data found in CSV');
           return;
         }
-        
-        setWateringSchedule(schedule);
+
+        // Save to database so it persists across refreshes.
+        await saveWateringSchedule(schedule);
+
+        // After saving, switch to the month of the uploaded file (assumes one month per CSV).
+        const monthFromUpload = schedule[0]?.date?.slice(0, 7);
+        if (monthFromUpload) {
+          setSelectedMonth(monthFromUpload);
+          await loadWateringSchedule(monthFromUpload);
+        } else if (selectedMonth) {
+          await loadWateringSchedule(selectedMonth);
+        }
+
         setUploadStatus('success');
         setTimeout(() => setUploadStatus('idle'), 3000);
       } catch (error) {
         setUploadStatus('error');
-        setErrorMessage('Error parsing CSV file');
+        setErrorMessage('Error parsing or saving CSV file');
       }
     };
     
@@ -130,6 +169,57 @@ export const WateringCalendar = () => {
           <p className="text-gray-500 mt-1">Upload your irrigation schedule to track missed waterings</p>
         </div>
       </div>
+
+      {/* Month Selector */}
+      <Card className="p-4">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="text-sm font-semibold text-gray-800">Month</div>
+            <select
+              value={selectedMonth}
+              onChange={async (e) => {
+                const m = e.target.value;
+                setSelectedMonth(m);
+                setIsLoading(true);
+                await loadWateringSchedule(m);
+                setIsLoading(false);
+              }}
+              className="w-full sm:w-56 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {isLoading && <span className="text-sm text-gray-500">Loading…</span>}
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="text-xs text-gray-500">
+              Uploading a new CSV for the same month will <span className="font-semibold">replace</span> its schedule.
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+              onClick={async () => {
+                if (!selectedMonth) return;
+                const confirmed = window.confirm(`Clear all watering schedule entries for ${selectedMonth}?`);
+                if (!confirmed) return;
+                setIsLoading(true);
+                try {
+                  await clearWateringScheduleMonth(selectedMonth);
+                  await loadWateringSchedule(selectedMonth);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear this month</span>
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Upload Section */}
       <Card className="p-8">

@@ -24,6 +24,11 @@ interface TreeContextType {
   deleteRecord: (id: string) => Promise<void>;
   wateringSchedule: WateringScheduleEntry[];
   setWateringSchedule: (schedule: WateringScheduleEntry[]) => void;
+  wateringMonths: string[];
+  refreshWateringMonths: () => Promise<string[]>;
+  loadWateringSchedule: (month: string) => Promise<WateringScheduleEntry[]>;
+  saveWateringSchedule: (schedule: WateringScheduleEntry[]) => Promise<void>;
+  clearWateringScheduleMonth: (month: string) => Promise<void>;
   getMissedIrrigationDates: () => string[];
 }
 
@@ -42,18 +47,70 @@ const API_BASE =
   (import.meta as any)?.env?.VITE_API_BASE ||
   `http://${window.location.hostname}:8080/api`;
 
-// Mock initial data - Only Olives as requested
-const initialData: TreeRecord[] = [
-  { id: '1', treeId: 'T-101', treeType: 'Olive', actionType: 'Irrigation', details: '50L', date: '2023-10-01', notes: 'Routine check' },
-  { id: '2', treeId: 'T-102', treeType: 'Olive', actionType: 'Medication', details: 'Fungicide X', date: '2023-10-02', notes: 'Spotted some spots' },
-  { id: '3', treeId: 'T-101', treeType: 'Olive', actionType: 'Irrigation', details: '45L', date: '2023-10-05' },
-  { id: '4', treeId: 'T-103', treeType: 'Olive', actionType: 'Irrigation', details: '60L', date: '2023-10-06' },
-  { id: '5', treeId: 'T-102', treeType: 'Olive', actionType: 'Irrigation', details: '55L', date: '2023-10-07' },
-];
-
 export const TreeProvider = ({ children }: { children: ReactNode }) => {
-  const [records, setRecords] = useState<TreeRecord[]>(initialData);
+  const [records, setRecords] = useState<TreeRecord[]>([]);
   const [wateringSchedule, setWateringSchedule] = useState<WateringScheduleEntry[]>([]);
+  const [wateringMonths, setWateringMonths] = useState<string[]>([]);
+
+  const refreshWateringMonths = async (): Promise<string[]> => {
+    try {
+      const response = await fetch(`${API_BASE}/watering-schedule/months`);
+      if (!response.ok) throw new Error(`Failed to fetch watering months: ${response.status}`);
+      const months = (await response.json()) as string[];
+      const normalized = Array.isArray(months) ? months.filter(Boolean).sort() : [];
+      setWateringMonths(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Error loading watering schedule months', error);
+      setWateringMonths([]);
+      return [];
+    }
+  };
+
+  const loadWateringSchedule = async (month: string): Promise<WateringScheduleEntry[]> => {
+    try {
+      const response = await fetch(`${API_BASE}/watering-schedule?month=${encodeURIComponent(month)}`);
+      if (!response.ok) throw new Error(`Failed to fetch watering schedule: ${response.status}`);
+      const entries = (await response.json()) as WateringScheduleEntry[];
+      const normalized = Array.isArray(entries) ? entries : [];
+      setWateringSchedule(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Error loading watering schedule', error);
+      setWateringSchedule([]);
+      return [];
+    }
+  };
+
+  const saveWateringSchedule = async (schedule: WateringScheduleEntry[]) => {
+    try {
+      const response = await fetch(`${API_BASE}/watering-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(schedule),
+      });
+      if (!response.ok) throw new Error(`Failed to save watering schedule: ${response.status}`);
+      await refreshWateringMonths();
+    } catch (error) {
+      console.error('Error saving watering schedule', error);
+      throw error;
+    }
+  };
+
+  const clearWateringScheduleMonth = async (month: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/watering-schedule?month=${encodeURIComponent(month)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error(`Failed to clear watering schedule: ${response.status}`);
+      // If the currently selected schedule is this month, clear it from state too.
+      setWateringSchedule((prev) => prev.filter((entry) => entry.date.slice(0, 7) !== month));
+      await refreshWateringMonths();
+    } catch (error) {
+      console.error('Error clearing watering schedule month', error);
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const fetchRecords = async () => {
@@ -116,17 +173,37 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const getMissedIrrigationDates = (): string[] => {
     const missedDates: string[] = [];
-    
+    const now = new Date();
+    const today = new Date(now);
+    today.setHours(0, 0, 0, 0);
+
+    // Treat the "end of day" as 16:00 local time.
+    // Before 16:00, today's irrigation should not be considered missed yet.
+    const endOfDayCutoff = new Date(today);
+    endOfDayCutoff.setHours(16, 0, 0, 0);
+
     wateringSchedule.forEach(scheduleEntry => {
-      if (scheduleEntry.shouldIrrigate) {
-        // Check if there's an irrigation record for this date
-        const hasIrrigation = records.some(
-          record => record.actionType === 'Irrigation' && record.date === scheduleEntry.date
-        );
-        
-        if (!hasIrrigation) {
-          missedDates.push(scheduleEntry.date);
-        }
+      if (!scheduleEntry.shouldIrrigate) return;
+
+      const scheduleDate = new Date(scheduleEntry.date);
+      scheduleDate.setHours(0, 0, 0, 0);
+
+      const isBeforeToday = scheduleDate.getTime() < today.getTime();
+      const isToday = scheduleDate.getTime() === today.getTime();
+
+      // Past days are always eligible; today becomes eligible only after 16:00; future days never.
+      const eligibleToBeMissed =
+        isBeforeToday || (isToday && now.getTime() >= endOfDayCutoff.getTime());
+
+      if (!eligibleToBeMissed) return;
+
+      // Check if there's an irrigation record for this date
+      const hasIrrigation = records.some(
+        record => record.actionType === 'Irrigation' && record.date === scheduleEntry.date
+      );
+      
+      if (!hasIrrigation) {
+        missedDates.push(scheduleEntry.date);
       }
     });
     
@@ -140,6 +217,11 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
       deleteRecord, 
       wateringSchedule, 
       setWateringSchedule,
+      wateringMonths,
+      refreshWateringMonths,
+      loadWateringSchedule,
+      saveWateringSchedule,
+      clearWateringScheduleMonth,
       getMissedIrrigationDates 
     }}>
       {children}

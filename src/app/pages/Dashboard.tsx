@@ -1,21 +1,53 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTreeContext } from '../context/TreeContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, LineChart, Line, CartesianGrid } from 'recharts';
 import { Leaf, Droplets, Activity, TrendingUp } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { records, getMissedIrrigationDates } = useTreeContext();
+  const { records, getMissedIrrigationDates, loadWateringSchedule, refreshWateringMonths, wateringMonths } = useTreeContext();
+  const [selectedMonth, setSelectedMonth] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const currentMonth = useMemo(() => {
+    const now = new Date();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return `${now.getFullYear()}-${m}`;
+  }, []);
+
+  const monthOptions = useMemo(() => {
+    const set = new Set([currentMonth, ...(wateringMonths || [])]);
+    return Array.from(set).filter(Boolean).sort();
+  }, [currentMonth, wateringMonths]);
+
+  useEffect(() => {
+    (async () => {
+      setIsLoading(true);
+      const months = await refreshWateringMonths();
+      const options = Array.from(new Set([currentMonth, ...months])).filter(Boolean).sort();
+      const initial = options.includes(currentMonth) ? currentMonth : options[options.length - 1] || currentMonth;
+      setSelectedMonth(initial);
+      await loadWateringSchedule(initial);
+      setIsLoading(false);
+    })();
+    // Run once on mount; avoid re-running whenever context callbacks change identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const monthRecords = useMemo(
+    () => records.filter(r => (r.date || '').slice(0, 7) === selectedMonth),
+    [records, selectedMonth]
+  );
 
   // Calculate stats
-  const totalTrees = new Set(records.map(r => r.treeId)).size;
-  const totalIrrigation = records.filter(r => r.actionType === 'Irrigation').length;
-  const totalMedication = records.filter(r => r.actionType === 'Medication').length;
+  const totalTrees = new Set(monthRecords.map(r => r.treeId)).size;
+  const totalIrrigation = monthRecords.filter(r => r.actionType === 'Irrigation').length;
+  const totalMedication = monthRecords.filter(r => r.actionType === 'Medication').length;
   
   // Get missed irrigation dates
   const missedIrrigationDates = getMissedIrrigationDates();
   
   // Prepare chart data
-  const dataByDate = records.reduce((acc, curr) => {
+  const dataByDate = monthRecords.reduce((acc, curr) => {
     const date = curr.date;
     if (!acc[date]) {
       acc[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 0 };
@@ -26,7 +58,9 @@ export const Dashboard = () => {
   }, {} as Record<string, { date: string; irrigation: number; medication: number; missedIrrigation: number }>);
 
   // Add missed irrigation dates to the chart data
-  missedIrrigationDates.forEach(date => {
+  missedIrrigationDates
+    .filter((date) => date.slice(0, 7) === selectedMonth)
+    .forEach(date => {
     if (!dataByDate[date]) {
       dataByDate[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 1 };
     } else {
@@ -43,8 +77,25 @@ export const Dashboard = () => {
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-500 mt-1">Overview of your orchard's health and activities.</p>
         </div>
-        <div className="mt-4 md:mt-0 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium border border-emerald-100">
-          Last Updated: {new Date().toLocaleDateString()}
+        <div className="mt-4 md:mt-0 flex items-center gap-3">
+          <select
+            value={selectedMonth}
+            onChange={async (e) => {
+              const m = e.target.value;
+              setSelectedMonth(m);
+              setIsLoading(true);
+              await loadWateringSchedule(m);
+              setIsLoading(false);
+            }}
+            className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          >
+            {monthOptions.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-medium border border-emerald-100">
+            {isLoading ? 'Loading…' : `Month: ${selectedMonth || currentMonth}`}
+          </div>
         </div>
       </div>
 
