@@ -4,6 +4,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { AddTreeData } from "./pages/AddTreeData";
 import { TreeList } from "./pages/TreeList";
 import { WateringCalendar } from "./pages/WateringCalendar";
+import { MedicationCalendar } from "./pages/MedicationCalendar";
 
 export const router = createBrowserRouter([
   {
@@ -14,6 +15,7 @@ export const router = createBrowserRouter([
       { path: "add", Component: AddTreeData },
       { path: "list", Component: TreeList },
       { path: "calendar", Component: WateringCalendar },
+      { path: "medication-calendar", Component: MedicationCalendar },
       { path: "*", Component: () => <div className="p-8 text-center text-gray-500">Page Not Found</div> },
     ],
   },

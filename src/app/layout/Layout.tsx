@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router';
-import { Home, PlusCircle, List, Sprout, Calendar } from 'lucide-react';
+import { Home, PlusCircle, List, Sprout, Calendar, Pill } from 'lucide-react';
 import { clsx } from 'clsx';
 import { ChatbotPopup } from '../components/ChatbotPopup';
 
@@ -16,6 +16,7 @@ const Sidebar = () => {
         <NavItem to="/add" icon={<PlusCircle size={20} />} label="Add Data" />
         <NavItem to="/list" icon={<List size={20} />} label="Examine Data" />
         <NavItem to="/calendar" icon={<Calendar size={20} />} label="Watering Calendar" />
+        <NavItem to="/medication-calendar" icon={<Pill size={20} />} label="Medication Calendar" />
       </nav>
       <div className="p-4 text-xs text-emerald-400 opacity-60">
         &copy; 2024 TreeTrack App
@@ -49,7 +50,8 @@ const MobileNav = () => {
       <MobileNavItem to="/" icon={<Home size={24} />} label="Home" />
       <MobileNavItem to="/add" icon={<PlusCircle size={24} />} label="Add" />
       <MobileNavItem to="/list" icon={<List size={24} />} label="List" />
-      <MobileNavItem to="/calendar" icon={<Calendar size={24} />} label="Calendar" />
+      <MobileNavItem to="/calendar" icon={<Calendar size={24} />} label="Watering" />
+      <MobileNavItem to="/medication-calendar" icon={<Pill size={24} />} label="Medication" />
     </div>
   );
 };

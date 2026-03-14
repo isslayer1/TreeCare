@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Line
 import { Leaf, Droplets, Activity, TrendingUp } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { records, getMissedIrrigationDates, loadWateringSchedule, refreshWateringMonths, wateringMonths } = useTreeContext();
+  const { records, getMissedIrrigationDates, loadWateringSchedule, refreshWateringMonths, wateringMonths, isLoadingRecords } = useTreeContext();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,10 +33,17 @@ export const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const monthRecords = useMemo(
-    () => records.filter(r => (r.date || '').slice(0, 7) === selectedMonth),
-    [records, selectedMonth]
-  );
+  const monthRecords = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return records.filter((r) => {
+      if ((r.date || '').slice(0, 7) !== selectedMonth) return false;
+      const recordDate = new Date(r.date);
+      recordDate.setHours(0, 0, 0, 0);
+      return recordDate.getTime() <= today.getTime();
+    });
+  }, [records, selectedMonth]);
 
   // Calculate stats
   const totalTrees = new Set(monthRecords.map(r => r.treeId)).size;
@@ -103,19 +110,19 @@ export const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
           title="Total Trees Managed" 
-          value={totalTrees} 
+          value={isLoadingRecords ? '—' : totalTrees} 
           icon={<Leaf className="text-emerald-500" />} 
           trend="+5 this week"
         />
         <StatCard 
           title="Irrigation Events" 
-          value={totalIrrigation} 
+          value={isLoadingRecords ? '—' : totalIrrigation} 
           icon={<Droplets className="text-blue-500" />} 
           trend="Avg 12/day"
         />
         <StatCard 
           title="Medication Applied" 
-          value={totalMedication} 
+          value={isLoadingRecords ? '—' : totalMedication} 
           icon={<Activity className="text-purple-600" />} 
           trend="Last: 2 days ago"
         />

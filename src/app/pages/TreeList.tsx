@@ -1,19 +1,33 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTreeContext } from '../context/TreeContext';
 import { Search, Filter, Trash2, Droplets, Syringe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const TreeList = () => {
-  const { records, deleteRecord } = useTreeContext();
+  const { records, deleteRecord, isLoadingRecords } = useTreeContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
-  const filteredRecords = records.filter(record => {
-    // Only search by treeId since type is always Olive
-    const matchesSearch = record.treeId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'All' || record.actionType === filterType;
-    return matchesSearch && matchesFilter;
-  });
+  const filteredRecords = useMemo(() => {
+    return records.filter((record) => {
+      // Only search by treeId since type is always Olive
+      const matchesSearch = record.treeId.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesFilter = filterType === 'All' || record.actionType === filterType;
+      return matchesSearch && matchesFilter;
+    });
+  }, [records, searchTerm, filterType]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
+  const paginatedRecords = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredRecords.slice(start, start + pageSize);
+  }, [filteredRecords, currentPage]);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
 
   return (
     <div className="space-y-6">
@@ -62,8 +76,26 @@ export const TreeList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredRecords.length > 0 ? (
-                filteredRecords.map((record) => (
+              {isLoadingRecords ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4">
+                      <div className="h-4 bg-gray-200 rounded w-24" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 bg-gray-200 rounded w-32" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 bg-gray-200 rounded w-48" />
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="h-4 bg-gray-200 rounded w-24" />
+                    </td>
+                    <td className="px-6 py-4" />
+                  </tr>
+                ))
+              ) : paginatedRecords.length > 0 ? (
+                paginatedRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900">{record.treeId}</td>
                     <td className="px-6 py-4">
@@ -113,11 +145,26 @@ export const TreeList = () => {
           </table>
         </div>
         
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between text-sm text-gray-500">
-          <span>Showing {filteredRecords.length} records</span>
-          <div className="flex gap-2">
-            <button className="p-1 rounded hover:bg-gray-200 disabled:opacity-50" disabled><ChevronLeft className="w-4 h-4" /></button>
-            <button className="p-1 rounded hover:bg-gray-200 disabled:opacity-50" disabled><ChevronRight className="w-4 h-4" /></button>
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex flex-col md:flex-row md:items-center justify-between text-sm text-gray-500 gap-2">
+          <span>
+            Showing {paginatedRecords.length} of {filteredRecords.length} records
+          </span>
+          <div className="flex gap-2 items-center">
+            <button
+              className="p-1 rounded hover:bg-gray-200 disabled:opacity-50"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-gray-500">{currentPage} / {totalPages}</span>
+            <button
+              className="p-1 rounded hover:bg-gray-200 disabled:opacity-50"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>

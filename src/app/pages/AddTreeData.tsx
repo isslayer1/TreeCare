@@ -5,6 +5,7 @@ import { ActionType, TreeRecord } from '../context/TreeContext';
 import { Droplets, Syringe, Calendar, Check, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 
 type FormData = Omit<TreeRecord, 'id'>;
 
@@ -14,12 +15,20 @@ export const AddTreeData = () => {
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
+  const today = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
   const onSubmit = async (data: FormData) => {
     // Automatically set treeType to 'Olive'
-    await addRecord({ ...data, treeType: 'Olive' });
-    setSuccess(true);
-    reset();
-    setTimeout(() => setSuccess(false), 3000);
+    try {
+      await addRecord({ ...data, treeType: 'Olive' });
+      setSuccess(true);
+      reset();
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (error) {
+      toast.error('Unable to save entry. Please try again.');
+    }
   };
 
   return (
@@ -57,7 +66,10 @@ export const AddTreeData = () => {
                   "w-full px-4 py-2.5 rounded-lg border focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors",
                   errors.treeId ? "border-red-300 bg-red-50" : "border-gray-300"
                 )}
-                {...register("treeId", { required: "Tree ID is required" })}
+                {...register("treeId", {
+                  required: "Tree ID is required",
+                  validate: (value) => value.trim().length > 0 || "Tree ID is required",
+                })}
               />
               {errors.treeId && <AlertCircle className="w-4 h-4 text-red-500 absolute right-3 top-3" />}
             </div>
@@ -103,8 +115,17 @@ export const AddTreeData = () => {
               <div className="relative">
                 <input
                   type="date"
+                  max={todayStr}
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                  {...register("date", { required: "Date is required" })}
+                  {...register("date", {
+                    required: "Date is required",
+                    validate: (value) => {
+                      const isValidFormat = /^\d{4}-\d{2}-\d{2}$/.test(value);
+                      if (!isValidFormat) return "Date must be in YYYY-MM-DD format";
+                      if (value > todayStr) return "Date cannot be in the future";
+                      return true;
+                    },
+                  })}
                 />
                 <Calendar className="w-4 h-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
               </div>
@@ -119,7 +140,10 @@ export const AddTreeData = () => {
               placeholder="e.g. 50L water or 'Fungicide X' dosage"
               rows={3}
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors resize-none"
-              {...register("details", { required: "Details are required" })}
+              {...register("details", {
+                required: "Details are required",
+                validate: (value) => value.trim().length > 0 || "Details are required",
+              })}
             ></textarea>
             {errors.details && <p className="text-xs text-red-500 mt-1">{errors.details.message}</p>}
           </div>

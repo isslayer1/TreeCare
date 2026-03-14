@@ -29,3 +29,22 @@ type WateringScheduleUpsertPayload struct {
 	ShouldIrrigate bool    `json:"shouldIrrigate"`
 	TreeID         *string `json:"treeId,omitempty"`
 }
+
+// MedicationScheduleEntry represents one day in a medication schedule.
+type MedicationScheduleEntry struct {
+	ID               primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Date             string             `bson:"date" json:"date"`
+	ShouldApply      bool               `bson:"shouldApply" json:"shouldApply"`
+	MedicationType   string             `bson:"medicationType" json:"medicationType"`
+	RecommendedBrand string             `bson:"recommendedBrand" json:"recommendedBrand"`
+	Month            string             `bson:"month" json:"month"` // YYYY-MM
+}
+
+// MedicationScheduleUpsertPayload is the JSON shape accepted from the frontend.
+// Month is derived from Date server-side.
+type MedicationScheduleUpsertPayload struct {
+	Date             string `json:"date"` // YYYY-MM-DD
+	ShouldApply      bool   `json:"shouldApply"`
+	MedicationType   string `json:"medicationType"`
+	RecommendedBrand string `json:"recommendedBrand"`
+}

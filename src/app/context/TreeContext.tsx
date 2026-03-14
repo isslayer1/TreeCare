@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { toast } from 'sonner';
 
 export type ActionType = 'Irrigation' | 'Medication';
 
@@ -18,8 +19,16 @@ export interface WateringScheduleEntry {
   treeId?: string; // optional, if schedule is per tree
 }
 
+export interface MedicationScheduleEntry {
+  date: string; // YYYY-MM-DD format
+  shouldApply: boolean;
+  medicationType: string;
+  recommendedBrand: string;
+}
+
 interface TreeContextType {
   records: TreeRecord[];
+  isLoadingRecords: boolean;
   addRecord: (record: Omit<TreeRecord, 'id'>) => Promise<void>;
   deleteRecord: (id: string) => Promise<void>;
   wateringSchedule: WateringScheduleEntry[];
@@ -30,6 +39,13 @@ interface TreeContextType {
   saveWateringSchedule: (schedule: WateringScheduleEntry[]) => Promise<void>;
   clearWateringScheduleMonth: (month: string) => Promise<void>;
   getMissedIrrigationDates: () => string[];
+  medicationSchedule: MedicationScheduleEntry[];
+  setMedicationSchedule: (schedule: MedicationScheduleEntry[]) => void;
+  medicationMonths: string[];
+  refreshMedicationMonths: () => Promise<string[]>;
+  loadMedicationSchedule: (month: string) => Promise<MedicationScheduleEntry[]>;
+  saveMedicationSchedule: (schedule: MedicationScheduleEntry[]) => Promise<void>;
+  clearMedicationScheduleMonth: (month: string) => Promise<void>;
 }
 
 const TreeContext = createContext<TreeContextType | undefined>(undefined);
@@ -45,12 +61,15 @@ export const useTreeContext = () => {
 // Point the frontend to the backend running on the same host (works for localhost and LAN IP)
 const API_BASE =
   (import.meta as any)?.env?.VITE_API_BASE ||
-  `http://${window.location.hostname}:8080/api`;
+  "/api";
 
 export const TreeProvider = ({ children }: { children: ReactNode }) => {
   const [records, setRecords] = useState<TreeRecord[]>([]);
+  const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [wateringSchedule, setWateringSchedule] = useState<WateringScheduleEntry[]>([]);
   const [wateringMonths, setWateringMonths] = useState<string[]>([]);
+  const [medicationSchedule, setMedicationSchedule] = useState<MedicationScheduleEntry[]>([]);
+  const [medicationMonths, setMedicationMonths] = useState<string[]>([]);
 
   const refreshWateringMonths = async (): Promise<string[]> => {
     try {
@@ -89,10 +108,15 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(schedule),
       });
-      if (!response.ok) throw new Error(`Failed to save watering schedule: ${response.status}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to save watering schedule (${response.status})`;
+        throw new Error(message);
+      }
       await refreshWateringMonths();
     } catch (error) {
       console.error('Error saving watering schedule', error);
+      toast.error('Failed to save watering schedule');
       throw error;
     }
   };
@@ -102,18 +126,102 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
       const response = await fetch(`${API_BASE}/watering-schedule?month=${encodeURIComponent(month)}`, {
         method: 'DELETE',
       });
-      if (!response.ok) throw new Error(`Failed to clear watering schedule: ${response.status}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to clear watering schedule (${response.status})`;
+        throw new Error(message);
+      }
       // If the currently selected schedule is this month, clear it from state too.
       setWateringSchedule((prev) => prev.filter((entry) => entry.date.slice(0, 7) !== month));
       await refreshWateringMonths();
+      toast.success('Schedule cleared');
     } catch (error) {
       console.error('Error clearing watering schedule month', error);
+      toast.error('Failed to clear schedule');
+      throw error;
+    }
+  };
+
+  const refreshMedicationMonths = async (): Promise<string[]> => {
+    try {
+      const response = await fetch(`${API_BASE}/medication-schedule/months`);
+      if (!response.ok) throw new Error(`Failed to fetch medication months: ${response.status}`);
+      const months = (await response.json()) as string[];
+      const normalized = Array.isArray(months) ? months.filter(Boolean).sort() : [];
+      setMedicationMonths(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Error fetching medication months', error);
+      toast.error('Failed to load medication months');
+      throw error;
+    }
+  };
+
+  const loadMedicationSchedule = async (month: string): Promise<MedicationScheduleEntry[]> => {
+    try {
+      const response = await fetch(`${API_BASE}/medication-schedule?month=${encodeURIComponent(month)}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to fetch medication schedule (${response.status})`;
+        throw new Error(message);
+      }
+      const schedule = (await response.json()) as MedicationScheduleEntry[];
+      const normalized = Array.isArray(schedule) ? schedule : [];
+      setMedicationSchedule(normalized);
+      return normalized;
+    } catch (error) {
+      console.error('Error loading medication schedule', error);
+      toast.error('Failed to load medication schedule');
+      throw error;
+    }
+  };
+
+  const saveMedicationSchedule = async (schedule: MedicationScheduleEntry[]): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE}/medication-schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(schedule),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to save medication schedule (${response.status})`;
+        throw new Error(message);
+      }
+      const result = await response.json();
+      toast.success(`Medication schedule saved (${result.inserted} entries)`);
+      await refreshMedicationMonths();
+    } catch (error) {
+      console.error('Error saving medication schedule', error);
+      toast.error('Failed to save medication schedule');
+      throw error;
+    }
+  };
+
+  const clearMedicationScheduleMonth = async (month: string): Promise<void> => {
+    try {
+      const response = await fetch(`${API_BASE}/medication-schedule?month=${encodeURIComponent(month)}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to clear medication schedule (${response.status})`;
+        throw new Error(message);
+      }
+      // If the currently selected schedule is this month, clear it from state too.
+      setMedicationSchedule((prev) => prev.filter((entry) => entry.date.slice(0, 7) !== month));
+      await refreshMedicationMonths();
+      toast.success('Medication schedule cleared');
+    } catch (error) {
+      console.error('Error clearing medication schedule month', error);
+      toast.error('Failed to clear medication schedule');
       throw error;
     }
   };
 
   useEffect(() => {
     const fetchRecords = async () => {
+      setIsLoadingRecords(true);
       try {
         const response = await fetch(`${API_BASE}/records`);
         if (!response.ok) {
@@ -125,9 +233,13 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
           setRecords(data);
         } else {
           console.error('Unexpected records payload from API, expected array:', data);
+          toast.error('Unexpected response when loading records');
         }
       } catch (error) {
         console.error('Error loading records from API', error);
+        toast.error('Unable to load records. Please check your connection.');
+      } finally {
+        setIsLoadingRecords(false);
       }
     };
 
@@ -145,29 +257,39 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to create record: ${response.status}`);
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to create record (${response.status})`;
+        throw new Error(message);
       }
 
       const created: TreeRecord = await response.json();
       setRecords((prev) => [created, ...prev]);
+      toast.success('Record saved');
     } catch (error) {
       console.error('Error creating record via API', error);
+      toast.error('Failed to save record');
+      throw error;
     }
   };
 
   const deleteRecord = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE}/records?id=${encodeURIComponent(id)}`, {
+      const response = await fetch(`${API_BASE}/records/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
 
       if (!response.ok && response.status !== 204) {
-        throw new Error(`Failed to delete record: ${response.status}`);
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to delete record (${response.status})`;
+        throw new Error(message);
       }
 
       setRecords((prev) => prev.filter((r) => r.id !== id));
+      toast.success('Record deleted');
     } catch (error) {
       console.error('Error deleting record via API', error);
+      toast.error('Failed to delete record');
+      throw error;
     }
   };
 
@@ -213,6 +335,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
   return (
     <TreeContext.Provider value={{ 
       records, 
+      isLoadingRecords,
       addRecord, 
       deleteRecord, 
       wateringSchedule, 
@@ -222,7 +345,14 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
       loadWateringSchedule,
       saveWateringSchedule,
       clearWateringScheduleMonth,
-      getMissedIrrigationDates 
+      getMissedIrrigationDates,
+      medicationSchedule,
+      setMedicationSchedule,
+      medicationMonths,
+      refreshMedicationMonths,
+      loadMedicationSchedule,
+      saveMedicationSchedule,
+      clearMedicationScheduleMonth
     }}>
       {children}
     </TreeContext.Provider>

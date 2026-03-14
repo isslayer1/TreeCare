@@ -1,5 +1,9 @@
+// @ts-ignore
 import { defineConfig } from 'vite'
-import path from 'path'
+// @ts-ignore
+import path from 'node:path'
+// @ts-ignore
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 
@@ -13,7 +17,17 @@ export default defineConfig({
   resolve: {
     alias: {
       // Alias @ to the src directory
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(path.dirname(fileURLToPath(import.meta.url)), './src'),
+    },
+  },
+
+  server: {
+    // Proxy API requests to the backend running on localhost:8080
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 

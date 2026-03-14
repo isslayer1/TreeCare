@@ -50,31 +50,36 @@ export const WateringCalendar = () => {
   };
 
   const parseCSV = (text: string): WateringScheduleEntry[] => {
-    const lines = text.split('\n').filter(line => line.trim());
-    const entries: WateringScheduleEntry[] = [];
-    
-    // Skip header row
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      const columns = line.split(',').map(col => col.trim());
-      
-      // Expected format: date,shouldIrrigate,treeId (optional)
-      // Example: 2023-10-01,true,T-101 OR 2023-10-01,yes OR 2023-10-01,1
-      if (columns.length >= 2) {
-        const date = columns[0];
-        const shouldIrrigateRaw = columns[1].toLowerCase();
-        const shouldIrrigate = shouldIrrigateRaw === 'true' || 
-                              shouldIrrigateRaw === 'yes' || 
-                              shouldIrrigateRaw === '1';
-        const treeId = columns[2] || undefined;
-        
-        entries.push({ date, shouldIrrigate, treeId });
+      const lines = text
+        .split('\n')
+        .map((line) => line.replace(/\r/g, '').trim())
+        .filter((line) => line);
+
+      const entries: WateringScheduleEntry[] = [];
+
+      // Skip header row
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line) continue;
+
+        const columns = line.split(',').map((col) => col.trim());
+
+        // Expected format: date,shouldIrrigate,treeId (optional)
+        // Example: 2023-10-01,true,T-101 OR 2023-10-01,yes OR 2023-10-01,1
+        if (columns.length >= 2) {
+          const date = columns[0];
+          const shouldIrrigateRaw = columns[1].toLowerCase();
+          const shouldIrrigate =
+            shouldIrrigateRaw === 'true' ||
+            shouldIrrigateRaw === 'yes' ||
+            shouldIrrigateRaw === '1';
+          const treeId = columns[2] || undefined;
+
+          entries.push({ date, shouldIrrigate, treeId });
+        }
       }
-    }
-    
-    return entries;
+
+      return entries;
   };
 
   const handleFile = (file: File) => {
@@ -110,9 +115,11 @@ export const WateringCalendar = () => {
 
         setUploadStatus('success');
         setTimeout(() => setUploadStatus('idle'), 3000);
-      } catch (error) {
+      } catch (error: any) {
         setUploadStatus('error');
-        setErrorMessage('Error parsing or saving CSV file');
+        setErrorMessage(
+          typeof error?.message === 'string' ? error.message : 'Error parsing or saving CSV file'
+        );
       }
     };
     
