@@ -288,6 +288,19 @@ export const MedicationCalendar = () => {
 
       <Card className="p-6">
         <h2 className="text-xl font-semibold mb-4">Schedule Preview</h2>
+        <div className="flex items-center gap-4 mb-4">
+          <label htmlFor="preview-month-select" className="font-medium">Examine Data for Month:</label>
+          <select
+            id="preview-month-select"
+            value={selectedMonth}
+            onChange={(e) => handleMonthChange(e.target.value)}
+            className="border rounded px-3 py-1"
+          >
+            {monthOptions.map((month) => (
+              <option key={month} value={month}>{month}</option>
+            ))}
+          </select>
+        </div>
         {isLoading ? (
           <p>Loading...</p>
         ) : medicationSchedule.length === 0 ? (

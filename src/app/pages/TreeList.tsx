@@ -1,23 +1,35 @@
 import React, { useMemo, useState } from 'react';
 import { useTreeContext } from '../context/TreeContext';
-import { Search, Filter, Trash2, Droplets, Syringe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Filter, Trash2, Droplets, Syringe, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const TreeList = () => {
   const { records, deleteRecord, isLoadingRecords } = useTreeContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
+  const [selectedMonth, setSelectedMonth] = useState<string>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  const monthOptions = useMemo(() => {
+    const months = new Set<string>();
+    records.forEach((record) => {
+      const date = new Date(record.date);
+      const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      months.add(month);
+    });
+    return ['All', ...Array.from(months).sort()];
+  }, [records]);
 
   const filteredRecords = useMemo(() => {
     return records.filter((record) => {
       // Only search by treeId since type is always Olive
       const matchesSearch = record.treeId.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesFilter = filterType === 'All' || record.actionType === filterType;
-      return matchesSearch && matchesFilter;
+      const matchesMonth = selectedMonth === 'All' || record.date.startsWith(selectedMonth);
+      return matchesSearch && matchesFilter && matchesMonth;
     });
-  }, [records, searchTerm, filterType]);
+  }, [records, searchTerm, filterType, selectedMonth]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / pageSize));
   const paginatedRecords = useMemo(() => {
@@ -27,7 +39,7 @@ export const TreeList = () => {
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterType]);
+  }, [searchTerm, filterType, selectedMonth]);
 
   return (
     <div className="space-y-6">
@@ -58,6 +70,20 @@ export const TreeList = () => {
               <option value="All">All Actions</option>
               <option value="Irrigation">Irrigation</option>
               <option value="Medication">Medication</option>
+            </select>
+          </div>
+          <div className="relative">
+            <Calendar className="w-5 h-5 text-gray-400 absolute left-3 top-2.5 pointer-events-none" />
+            <select
+              className="pl-10 pr-8 py-2 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none bg-white"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              {monthOptions.map((month) => (
+                <option key={month} value={month}>
+                  {month === 'All' ? 'All Months' : month}
+                </option>
+              ))}
             </select>
           </div>
         </div>
