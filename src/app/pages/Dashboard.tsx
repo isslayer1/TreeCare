@@ -4,7 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Line
 import { Leaf, Droplets, Activity, TrendingUp } from 'lucide-react';
 
 export const Dashboard = () => {
-  const { records, getMissedIrrigationDates, loadWateringSchedule, refreshWateringMonths, wateringMonths, isLoadingRecords } = useTreeContext();
+  const { records, getMissedIrrigationDates, loadWateringSchedule, refreshWateringMonths, wateringMonths, isLoadingRecords, medicationSchedule, loadMedicationSchedule } = useTreeContext();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,6 +27,7 @@ export const Dashboard = () => {
       const initial = options.includes(currentMonth) ? currentMonth : options[options.length - 1] || currentMonth;
       setSelectedMonth(initial);
       await loadWateringSchedule(initial);
+      await loadMedicationSchedule(initial);
       setIsLoading(false);
     })();
     // Run once on mount; avoid re-running whenever context callbacks change identity.
@@ -57,23 +58,47 @@ export const Dashboard = () => {
   const dataByDate = monthRecords.reduce((acc, curr) => {
     const date = curr.date;
     if (!acc[date]) {
-      acc[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 0 };
+      acc[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 0, missedMedication: 0 };
     }
     if (curr.actionType === 'Irrigation') acc[date].irrigation += 1;
     if (curr.actionType === 'Medication') acc[date].medication += 1;
     return acc;
-  }, {} as Record<string, { date: string; irrigation: number; medication: number; missedIrrigation: number }>);
+  }, {} as Record<string, { date: string; irrigation: number; medication: number; missedIrrigation: number; missedMedication: number }>);
 
   // Add missed irrigation dates to the chart data
   missedIrrigationDates
     .filter((date) => date.slice(0, 7) === selectedMonth)
     .forEach(date => {
     if (!dataByDate[date]) {
-      dataByDate[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 1 };
+      dataByDate[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 1, missedMedication: 0 };
     } else {
       dataByDate[date].missedIrrigation = 1;
     }
   });
+
+  // Add missed medication dates to the chart data
+  const now = new Date();
+  const isAfter4PM = now.getHours() >= 16;
+  medicationSchedule
+    .filter(e => e.shouldApply)
+    .filter(e => e.date.slice(0, 7) === selectedMonth)
+    .filter(e => {
+      const entryDate = new Date(e.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isPast = entryDate < today;
+      const isToday = entryDate.getTime() === today.getTime();
+      return isPast || (isToday && isAfter4PM);
+    })
+    .filter(e => !records.some(r => r.date === e.date && r.actionType === 'Medication'))
+    .forEach(e => {
+      const date = e.date;
+      if (!dataByDate[date]) {
+        dataByDate[date] = { date, irrigation: 0, medication: 0, missedIrrigation: 0, missedMedication: 1 };
+      } else {
+        dataByDate[date].missedMedication = 1;
+      }
+    });
 
   const chartData = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -159,12 +184,13 @@ export const Dashboard = () => {
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                 <XAxis dataKey="date" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-                <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} />
+                <YAxis tick={false} tickLine={false} axisLine={false} />
                 <Tooltip cursor={{fill: 'transparent'}} />
                 <Legend />
-                <Bar dataKey="irrigation" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Irrigation" />
-                <Bar dataKey="missedIrrigation" fill="#dc2626" radius={[4, 4, 0, 0]} name="Missed Irrigation" />
-                <Bar dataKey="medication" fill="#9333ea" radius={[4, 4, 0, 0]} name="Medication" />
+                <Bar dataKey="irrigation" stackId="activity" fill="#3b82f6" radius={[2, 2, 0, 0]} name="Irrigation" />
+                <Bar dataKey="missedIrrigation" stackId="activity" fill="#dc2626" name="Missed Irrigation" />
+                <Bar dataKey="medication" stackId="activity" fill="#9333ea" name="Medication" />
+                <Bar dataKey="missedMedication" stackId="activity" fill="#64748b" radius={[0, 0, 2, 2]} name="Missed Medication" />
               </BarChart>
             </ResponsiveContainer>
           </div>

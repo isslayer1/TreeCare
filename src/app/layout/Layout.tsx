@@ -9,7 +9,7 @@ const Sidebar = () => {
     <div className="w-64 bg-emerald-900 text-white h-screen flex flex-col fixed left-0 top-0 overflow-y-auto">
       <div className="p-6 flex items-center space-x-2 border-b border-emerald-800">
         <Sprout className="w-8 h-8 text-emerald-300" />
-        <h1 className="text-2xl font-bold tracking-tight">TreeTrack</h1>
+        <h1 className="text-2xl font-bold tracking-tight">TreeCare</h1>
       </div>
       <nav className="flex-1 p-4 space-y-2">
         <NavItem to="/" icon={<Home size={20} />} label="Dashboard" />
@@ -19,7 +19,7 @@ const Sidebar = () => {
         <NavItem to="/medication-calendar" icon={<Pill size={20} />} label="Medication Calendar" />
       </nav>
       <div className="p-4 text-xs text-emerald-400 opacity-60">
-        &copy; 2024 TreeTrack App
+        &copy; 2026 TreeCare App
       </div>
     </div>
   );
@@ -83,7 +83,7 @@ export const Layout = () => {
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
         <header className="bg-white shadow-sm border-b border-gray-200 p-4 md:hidden sticky top-0 z-40 flex items-center space-x-2">
             <Sprout className="w-6 h-6 text-emerald-600" />
-            <span className="font-bold text-lg text-emerald-900">TreeTrack</span>
+            <span className="font-bold text-lg text-emerald-900">TreeCare</span>
         </header>
 
         <main className="flex-1 p-4 md:p-8 pb-32 md:pb-8 overflow-x-hidden">

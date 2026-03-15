@@ -3,6 +3,7 @@ import { Upload, Calendar, CheckCircle, XCircle, FileText, Download, Trash2 } fr
 import { Button } from '../components/ui/button';
 import { useTreeContext, WateringScheduleEntry } from '../context/TreeContext';
 import { Card } from '../components/ui/card';
+import { Calendar as UICalendar } from '../components/ui/calendar';
 
 export const WateringCalendar = () => {
   const { wateringSchedule, loadWateringSchedule, refreshWateringMonths, saveWateringSchedule, clearWateringScheduleMonth, wateringMonths } = useTreeContext();
@@ -12,6 +13,7 @@ export const WateringCalendar = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPreviewMonth, setCurrentPreviewMonth] = useState<string>('');
 
   const currentMonth = useMemo(() => {
     const now = new Date();
@@ -38,6 +40,10 @@ export const WateringCalendar = () => {
     // isn't re-fetched on every render when context callbacks change identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setCurrentPreviewMonth(selectedMonth);
+  }, [selectedMonth]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -326,42 +332,43 @@ export const WateringCalendar = () => {
       {wateringSchedule.length > 0 && (
         <Card className="p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Schedule Preview</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Should Irrigate</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Tree ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                {wateringSchedule.slice(0, 10).map((entry, index) => (
-                  <tr key={index} className="border-t border-gray-200 hover:bg-gray-50">
-                    <td className="px-4 py-3">{entry.date}</td>
-                    <td className="px-4 py-3">
-                      {entry.shouldIrrigate ? (
-                        <span className="flex items-center space-x-1 text-green-600">
-                          <CheckCircle size={16} />
-                          <span>Yes</span>
-                        </span>
-                      ) : (
-                        <span className="flex items-center space-x-1 text-gray-500">
-                          <XCircle size={16} />
-                          <span>No</span>
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{entry.treeId || 'All trees'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {wateringSchedule.length > 10 && (
-              <p className="text-sm text-gray-500 mt-3 text-center">
-                Showing 10 of {wateringSchedule.length} entries
-              </p>
-            )}
+          <div className="flex items-center gap-3 mb-4">
+            <label className="text-sm font-semibold text-gray-800">Preview Month:</label>
+            <select
+              value={currentPreviewMonth}
+              onChange={async (e) => {
+                const m = e.target.value;
+                setCurrentPreviewMonth(m);
+                setIsLoading(true);
+                await loadWateringSchedule(m);
+                setIsLoading(false);
+              }}
+              className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {isLoading && <span className="text-sm text-gray-500">Loading…</span>}
+          </div>
+          <div className="flex justify-center">
+            <UICalendar
+              month={currentPreviewMonth ? new Date(currentPreviewMonth + '-01') : undefined}
+              onMonthChange={async (month) => {
+                const m = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+                setCurrentPreviewMonth(m);
+                setIsLoading(true);
+                await loadWateringSchedule(m);
+                setIsLoading(false);
+              }}
+              modifiers={{
+                watering: wateringSchedule.filter(e => e.shouldIrrigate).map(e => new Date(e.date))
+              }}
+              modifiersClassNames={{
+                watering: 'bg-green-200 text-green-800 font-semibold'
+              }}
+              className="rounded-md border"
+            />
           </div>
         </Card>
       )}

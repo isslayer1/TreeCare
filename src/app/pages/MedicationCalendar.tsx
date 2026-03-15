@@ -3,6 +3,7 @@ import { Upload, Calendar, CheckCircle, XCircle, FileText, Download, Trash2 } fr
 import { Button } from '../components/ui/button';
 import { useTreeContext, MedicationScheduleEntry } from '../context/TreeContext';
 import { Card } from '../components/ui/card';
+import { Calendar as UICalendar } from '../components/ui/calendar';
 
 export const MedicationCalendar = () => {
   const { medicationSchedule, setMedicationSchedule, loadMedicationSchedule, refreshMedicationMonths, saveMedicationSchedule, clearMedicationScheduleMonth, medicationMonths } = useTreeContext();
@@ -12,6 +13,7 @@ export const MedicationCalendar = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPreviewMonth, setCurrentPreviewMonth] = useState<string>('');
 
   const currentMonth = useMemo(() => {
     const now = new Date();
@@ -44,6 +46,10 @@ export const MedicationCalendar = () => {
     // isn't re-fetched on every render when context callbacks change identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setCurrentPreviewMonth(selectedMonth);
+  }, [selectedMonth]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -90,25 +96,46 @@ export const MedicationCalendar = () => {
   };
 
   const handleFile = (file: File) => {
+    if (!file.name.endsWith('.csv')) {
+      setUploadStatus('error');
+      setErrorMessage('Please upload a CSV file');
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
+    reader.onload = async (e) => {
       try {
-        const parsed = parseCSV(text);
-        if (parsed.length === 0) {
+        const text = e.target?.result as string;
+        const schedule = parseCSV(text);
+        
+        if (schedule.length === 0) {
           setUploadStatus('error');
-          setErrorMessage('No valid entries found in CSV');
+          setErrorMessage('No valid data found in CSV');
           return;
         }
+
+        // Save to database so it persists across refreshes.
+        await saveMedicationSchedule(schedule);
+
+        // After saving, switch to the month of the uploaded file (assumes one month per CSV).
+        const monthFromUpload = schedule[0]?.date?.slice(0, 7);
+        if (monthFromUpload) {
+          setSelectedMonth(monthFromUpload);
+          await loadMedicationSchedule(monthFromUpload);
+        } else if (selectedMonth) {
+          await loadMedicationSchedule(selectedMonth);
+        }
+
         setUploadStatus('success');
-        setErrorMessage('');
-        // Set the parsed schedule in context
-        setMedicationSchedule(parsed);
-      } catch (error) {
+        setTimeout(() => setUploadStatus('idle'), 3000);
+      } catch (error: any) {
         setUploadStatus('error');
-        setErrorMessage('Failed to parse CSV');
+        setErrorMessage(
+          typeof error?.message === 'string' ? error.message : 'Error parsing or saving CSV file'
+        );
       }
     };
+    
     reader.readAsText(file);
   };
 
@@ -158,20 +185,6 @@ export const MedicationCalendar = () => {
     }
   };
 
-  const handleSave = async () => {
-    if (medicationSchedule.length === 0) {
-      setErrorMessage('No schedule to save');
-      return;
-    }
-    try {
-      await saveMedicationSchedule(medicationSchedule);
-      setUploadStatus('success');
-      setErrorMessage('');
-    } catch (error) {
-      setUploadStatus('error');
-      setErrorMessage('Failed to save schedule');
-    }
-  };
 
   const handleClear = async () => {
     if (!selectedMonth) return;
@@ -183,155 +196,202 @@ export const MedicationCalendar = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <div className="flex items-center gap-2 mb-6">
-        <Calendar className="h-6 w-6" />
-        <h1 className="text-2xl font-bold">Medication Calendar</h1>
+    <div className="space-y-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 flex items-center space-x-2">
+            <Calendar className="text-emerald-600" size={32} />
+            <span>Medication Calendar</span>
+          </h1>
+          <p className="text-gray-500 mt-1">Upload your medication schedule to track applications</p>
+        </div>
       </div>
 
-      <Card className="p-6 mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <label htmlFor="month-select" className="font-medium">Select Month:</label>
-          <select
-            id="month-select"
-            value={selectedMonth}
-            onChange={(e) => handleMonthChange(e.target.value)}
-            className="border rounded px-3 py-1"
-          >
-            {monthOptions.map((month) => (
-              <option key={month} value={month}>{month}</option>
-            ))}
-          </select>
-        </div>
+      {/* Month Selector */}
+      <Card className="p-4">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="text-sm font-semibold text-gray-800">Month</div>
+            <select
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              className="w-full sm:w-56 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {isLoading && <span className="text-sm text-gray-500">Loading…</span>}
+          </div>
 
-        <div className="mb-4">
-          <Button onClick={downloadSampleCSV} variant="outline" className="mr-2">
-            <Download className="h-4 w-4 mr-2" />
-            Download Sample CSV
-          </Button>
-          <Button onClick={handleClear} variant="destructive">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Clear Month
-          </Button>
-        </div>
-
-        <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-            dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-          }`}
-          onDragEnter={handleDrag}
-          onDragLeave={handleDrag}
-          onDragOver={handleDrag}
-          onDrop={handleDrop}
-        >
-          <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg mb-2">Drag and drop your CSV file here</p>
-          <p className="text-sm text-gray-500 mb-4">or</p>
-          <Button onClick={handleButtonClick} variant="outline">
-            <FileText className="h-4 w-4 mr-2" />
-            Select File
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleChange}
-            className="hidden"
-          />
-          <div className="text-xs text-gray-400 mt-4">
-            CSV Format: Date,ShouldApply,MedicationType,RecommendedBrand
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="text-xs text-gray-500">
+              Uploading a new CSV for the same month will <span className="font-semibold">replace</span> its schedule.
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+              onClick={handleClear}
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear this month</span>
+            </Button>
           </div>
         </div>
+      </Card>
 
-        {/* CSV Format Guide */}
-        <Card className="mt-6 p-4 bg-blue-50 border-blue-200">
-          <h3 className="text-lg font-semibold text-blue-900 mb-3">CSV Format Guide</h3>
-          <div className="space-y-3 text-sm text-blue-800">
-            <div>
-              <strong>Columns (in order):</strong>
-              <ol className="list-decimal list-inside mt-1 ml-4 space-y-1">
-                <li><strong>Date</strong> - Format: YYYY-MM-DD (e.g., 2024-03-15)</li>
-                <li><strong>ShouldApply</strong> - true/false, yes/no, or 1/0</li>
-                <li><strong>MedicationType</strong> - Type of medication (e.g., Pesticide, Fungicide)</li>
-                <li><strong>RecommendedBrand</strong> - Brand name or leave empty</li>
-              </ol>
+      {/* Upload Section */}
+      <Card className="p-8">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-800">Upload CSV Schedule</h2>
+            <Button
+              onClick={downloadSampleCSV}
+              variant="outline"
+              className="flex items-center space-x-2"
+            >
+              <Download size={16} />
+              <span>Download Sample</span>
+            </Button>
+          </div>
+
+          <div
+            className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 ${
+              dragActive 
+                ? 'border-emerald-500 bg-emerald-50' 
+                : uploadStatus === 'success'
+                ? 'border-green-500 bg-green-50'
+                : uploadStatus === 'error'
+                ? 'border-red-500 bg-red-50'
+                : 'border-gray-300 bg-gray-50 hover:border-emerald-400 hover:bg-emerald-50/50'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleChange}
+              className="hidden"
+            />
+
+            <div className="space-y-4">
+              {uploadStatus === 'success' ? (
+                <>
+                  <CheckCircle className="mx-auto text-green-600" size={48} />
+                  <p className="text-green-700 font-medium">Schedule uploaded successfully!</p>
+                  <p className="text-sm text-gray-600">{medicationSchedule.length} entries loaded</p>
+                </>
+              ) : uploadStatus === 'error' ? (
+                <>
+                  <XCircle className="mx-auto text-red-600" size={48} />
+                  <p className="text-red-700 font-medium">{errorMessage}</p>
+                  <Button onClick={handleButtonClick} variant="outline">
+                    Try Again
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Upload className="mx-auto text-gray-400" size={48} />
+                  <div>
+                    <p className="text-lg font-medium text-gray-700">
+                      Drag and drop your CSV file here
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">or</p>
+                  </div>
+                  <Button onClick={handleButtonClick} className="bg-emerald-600 hover:bg-emerald-700">
+                    <FileText size={16} className="mr-2" />
+                    Browse Files
+                  </Button>
+                  <div className="text-xs text-gray-400 mt-4">
+                    CSV Format: date,shouldApply,medicationType,recommendedBrand
+                  </div>
+                </>
+              )}
             </div>
-            <div>
-              <strong>Example:</strong>
-              <pre className="bg-white p-2 rounded mt-1 text-xs overflow-x-auto">
-{`Date,ShouldApply,MedicationType,RecommendedBrand
-2024-03-15,true,Pesticide,BrandA`}</pre>
+          </div>
+
+          {/* CSV Format Guide */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h3 className="font-semibold text-blue-900 mb-2 flex items-center space-x-2">
+              <FileText size={16} />
+              <span>CSV Format Guide</span>
+            </h3>
+            <div className="text-sm text-blue-800 space-y-1">
+              <p><strong>Required columns:</strong></p>
+              <ul className="list-disc list-inside ml-2 space-y-1">
+                <li><code className="bg-blue-100 px-1 rounded">date</code> - Date in YYYY-MM-DD format (e.g., 2024-03-15)</li>
+                <li><code className="bg-blue-100 px-1 rounded">shouldApply</code> - true/false, yes/no, or 1/0</li>
+                <li><code className="bg-blue-100 px-1 rounded">medicationType</code> - Type of medication (e.g., Pesticide)</li>
+                <li><code className="bg-blue-100 px-1 rounded">recommendedBrand</code> - (Optional) Brand name</li>
+              </ul>
+              <p className="mt-2"><strong>Example row:</strong></p>
+              <code className="block bg-blue-100 px-2 py-1 rounded mt-1">2024-03-15,true,Pesticide,BrandA</code>
             </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Schedule Preview */}
+      {medicationSchedule.length > 0 && (
+        <Card className="p-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Schedule Preview</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <label className="text-sm font-semibold text-gray-800">Preview Month:</label>
+            <select
+              value={currentPreviewMonth}
+              onChange={async (e) => {
+                const m = e.target.value;
+                setCurrentPreviewMonth(m);
+                setIsLoading(true);
+                try {
+                  await loadMedicationSchedule(m);
+                } catch (error) {
+                  console.error('Error loading medication schedule for month:', error);
+                  setErrorMessage('Failed to load schedule for selected month');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            >
+              {monthOptions.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            {isLoading && <span className="text-sm text-gray-500">Loading…</span>}
+          </div>
+          <div className="flex justify-center">
+            <UICalendar
+              month={currentPreviewMonth ? new Date(currentPreviewMonth + '-01') : undefined}
+              onMonthChange={async (month) => {
+                const m = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+                setCurrentPreviewMonth(m);
+                setIsLoading(true);
+                try {
+                  await loadMedicationSchedule(m);
+                } catch (error) {
+                  console.error('Error loading medication schedule for month:', error);
+                  setErrorMessage('Failed to load schedule for selected month');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              modifiers={{
+                medication: medicationSchedule.filter(e => e.shouldApply).map(e => new Date(e.date))
+              }}
+              modifiersClassNames={{
+                medication: 'bg-purple-200 text-purple-800 font-semibold'
+              }}
+              className="rounded-md border"
+            />
           </div>
         </Card>
-
-        {uploadStatus === 'success' && (
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded">
-            <CheckCircle className="h-5 w-5 text-green-500 inline mr-2" />
-            CSV uploaded successfully. Preview below.
-          </div>
-        )}
-
-        {uploadStatus === 'error' && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded">
-            <XCircle className="h-5 w-5 text-red-500 inline mr-2" />
-            {errorMessage}
-          </div>
-        )}
-
-        <div className="mt-4">
-          <Button onClick={handleSave} disabled={medicationSchedule.length === 0}>
-            Save Schedule
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Schedule Preview</h2>
-        <div className="flex items-center gap-4 mb-4">
-          <label htmlFor="preview-month-select" className="font-medium">Examine Data for Month:</label>
-          <select
-            id="preview-month-select"
-            value={selectedMonth}
-            onChange={(e) => handleMonthChange(e.target.value)}
-            className="border rounded px-3 py-1"
-          >
-            {monthOptions.map((month) => (
-              <option key={month} value={month}>{month}</option>
-            ))}
-          </select>
-        </div>
-        {isLoading ? (
-          <p>Loading...</p>
-        ) : medicationSchedule.length === 0 ? (
-          <p>No schedule for this month.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-300 px-4 py-2">Date</th>
-                  <th className="border border-gray-300 px-4 py-2">Should Apply</th>
-                  <th className="border border-gray-300 px-4 py-2">Medication Type</th>
-                  <th className="border border-gray-300 px-4 py-2">Recommended Brand</th>
-                </tr>
-              </thead>
-              <tbody>
-                {medicationSchedule.map((entry, index) => (
-                  <tr key={index}>
-                    <td className="border border-gray-300 px-4 py-2">{entry.date}</td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {entry.shouldApply ? <CheckCircle className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
-                    </td>
-                    <td className="border border-gray-300 px-4 py-2">{entry.medicationType}</td>
-                    <td className="border border-gray-300 px-4 py-2">{entry.recommendedBrand}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      )}
     </div>
   );
 };
