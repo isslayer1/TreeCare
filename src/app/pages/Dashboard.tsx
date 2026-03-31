@@ -187,10 +187,10 @@ export const Dashboard = () => {
                 <YAxis tick={false} tickLine={false} axisLine={false} />
                 <Tooltip cursor={{fill: 'transparent'}} />
                 <Legend />
-                <Bar dataKey="irrigation" stackId="activity" fill="#3b82f6" radius={[2, 2, 0, 0]} name="Irrigation" />
-                <Bar dataKey="missedIrrigation" stackId="activity" fill="#dc2626" name="Missed Irrigation" />
-                <Bar dataKey="medication" stackId="activity" fill="#9333ea" name="Medication" />
-                <Bar dataKey="missedMedication" stackId="activity" fill="#64748b" radius={[0, 0, 2, 2]} name="Missed Medication" />
+                <Bar dataKey="irrigation" stackId="activity" fill="#10b981" radius={[2, 2, 0, 0]} name="Irrigation" />
+                <Bar dataKey="missedIrrigation" stackId="activity" fill="#f87171" name="Missed Irrigation" />
+                <Bar dataKey="medication" stackId="activity" fill="#8b5cf6" name="Medication" />
+                <Bar dataKey="missedMedication" stackId="activity" fill="#94a3b8" radius={[0, 0, 2, 2]} name="Missed Medication" />
               </BarChart>
             </ResponsiveContainer>
           </div>
