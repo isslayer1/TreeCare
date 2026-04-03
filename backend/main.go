@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -29,17 +30,24 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 func getRecords(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	cur, err := db.Collection("tree_records").Find(ctx, bson.M{})
+	cur, err := db.Collection("tree_records").Find(ctx, bson.M{"userId": userID})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to fetch records")
 		return
 	}
 	defer cur.Close(ctx)
 
-	var records = make([]TreeRecord, 0)
+	var records =
+	 make([]TreeRecord, 0)
 	if err := cur.All(ctx, &records); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to decode records")
 		return
@@ -50,6 +58,12 @@ func getRecords(w http.ResponseWriter, r *http.Request) {
 
 // createRecord inserts a new tree record.
 func createRecord(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	var rec TreeRecord
 	if err := json.NewDecoder(r.Body).Decode(&rec); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request payload")
@@ -77,6 +91,7 @@ func createRecord(w http.ResponseWriter, r *http.Request) {
 	if rec.TreeType == "" {
 		rec.TreeType = "Olive"
 	}
+	rec.UserID = userID
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -93,6 +108,12 @@ func createRecord(w http.ResponseWriter, r *http.Request) {
 
 // deleteRecord deletes a record by its MongoDB ObjectID passed as /api/records/{id}
 func deleteRecord(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	idStr := chi.URLParam(r, "id")
 	if idStr == "" {
 		writeError(w, http.StatusBadRequest, "id parameter is required")
@@ -108,7 +129,7 @@ func deleteRecord(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	res, err := db.Collection("tree_records").DeleteOne(ctx, bson.M{"_id": oid})
+	res, err := db.Collection("tree_records").DeleteOne(ctx, bson.M{"_id": oid, "userId": userID})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete record")
 		return
@@ -123,10 +144,16 @@ func deleteRecord(w http.ResponseWriter, r *http.Request) {
 }
 
 func getWateringScheduleMonths(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	monthsRaw, err := db.Collection("watering_schedule").Distinct(ctx, "month", bson.M{})
+	monthsRaw, err := db.Collection("watering_schedule").Distinct(ctx, "month", bson.M{"userId": userID})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -148,6 +175,12 @@ func getWateringScheduleMonths(w http.ResponseWriter, r *http.Request) {
 }
 
 func getWateringScheduleByMonth(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	month := r.URL.Query().Get("month")
 	if month == "" {
 		writeError(w, http.StatusBadRequest, "month query parameter is required (YYYY-MM)")
@@ -161,7 +194,7 @@ func getWateringScheduleByMonth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	cur, err := db.Collection("watering_schedule").Find(ctx, bson.M{"month": month})
+	cur, err := db.Collection("watering_schedule").Find(ctx, bson.M{"month": month, "userId": userID})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to fetch watering schedule")
 		return
@@ -180,6 +213,12 @@ func getWateringScheduleByMonth(w http.ResponseWriter, r *http.Request) {
 // upsertWateringSchedule replaces all entries for each month present in the payload.
 // The frontend usually uploads a CSV for a single month, but this supports multiple months too.
 func upsertWateringSchedule(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	var payload []WateringScheduleUpsertPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request payload")
@@ -222,6 +261,7 @@ func upsertWateringSchedule(w http.ResponseWriter, r *http.Request) {
 		}
 
 		entries = append(entries, WateringScheduleEntry{
+			UserID:         userID,
 			Date:           date,
 			ShouldIrrigate: p.ShouldIrrigate,
 			TreeID:         treeIDPtr,
@@ -238,7 +278,7 @@ func upsertWateringSchedule(w http.ResponseWriter, r *http.Request) {
 	// Keep a backup of existing docs for each touched month so we can restore on failure.
 	backup := map[string][]bson.M{}
 	for month := range monthsTouched {
-		cur, err := collection.Find(ctx, bson.M{"month": month})
+		cur, err := collection.Find(ctx, bson.M{"month": month, "userId": userID})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to read existing schedule")
 			return
@@ -251,7 +291,7 @@ func upsertWateringSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for month := range monthsTouched {
-		if _, err := collection.DeleteMany(ctx, bson.M{"month": month}); err != nil {
+		if _, err := collection.DeleteMany(ctx, bson.M{"month": month, "userId": userID}); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to delete old schedule")
 			return
 		}
@@ -282,6 +322,12 @@ func upsertWateringSchedule(w http.ResponseWriter, r *http.Request) {
 
 // deleteWateringScheduleMonth clears all schedule entries for a specific month.
 func deleteWateringScheduleMonth(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	month := r.URL.Query().Get("month")
 	if month == "" {
 		writeError(w, http.StatusBadRequest, "month query parameter is required (YYYY-MM)")
@@ -295,7 +341,7 @@ func deleteWateringScheduleMonth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	res, err := db.Collection("watering_schedule").DeleteMany(ctx, bson.M{"month": month})
+	res, err := db.Collection("watering_schedule").DeleteMany(ctx, bson.M{"month": month, "userId": userID})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to clear watering schedule")
 		return
@@ -309,10 +355,16 @@ func deleteWateringScheduleMonth(w http.ResponseWriter, r *http.Request) {
 }
 
 func getMedicationScheduleMonths(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	monthsRaw, err := db.Collection("medication_schedule").Distinct(ctx, "month", bson.M{})
+	monthsRaw, err := db.Collection("medication_schedule").Distinct(ctx, "month", bson.M{"userId": userID})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -334,6 +386,12 @@ func getMedicationScheduleMonths(w http.ResponseWriter, r *http.Request) {
 }
 
 func getMedicationScheduleByMonth(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	month := r.URL.Query().Get("month")
 	if month == "" {
 		writeError(w, http.StatusBadRequest, "month query parameter is required (YYYY-MM)")
@@ -347,7 +405,7 @@ func getMedicationScheduleByMonth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	cur, err := db.Collection("medication_schedule").Find(ctx, bson.M{"month": month})
+	cur, err := db.Collection("medication_schedule").Find(ctx, bson.M{"month": month, "userId": userID})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to fetch medication schedule")
 		return
@@ -364,6 +422,12 @@ func getMedicationScheduleByMonth(w http.ResponseWriter, r *http.Request) {
 }
 
 func upsertMedicationSchedule(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	var payload []MedicationScheduleUpsertPayload
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request payload")
@@ -404,6 +468,7 @@ func upsertMedicationSchedule(w http.ResponseWriter, r *http.Request) {
 		recommendedBrand := strings.TrimSpace(strings.ReplaceAll(p.RecommendedBrand, "\r", ""))
 
 		entries = append(entries, MedicationScheduleEntry{
+			UserID:           userID,
 			Date:             date,
 			ShouldApply:      p.ShouldApply,
 			MedicationType:   medicationType,
@@ -421,7 +486,7 @@ func upsertMedicationSchedule(w http.ResponseWriter, r *http.Request) {
 	// Keep a backup of existing docs for each touched month so we can restore on failure.
 	backup := map[string][]bson.M{}
 	for month := range monthsTouched {
-		cur, err := collection.Find(ctx, bson.M{"month": month})
+		cur, err := collection.Find(ctx, bson.M{"month": month, "userId": userID})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to read existing schedule")
 			return
@@ -434,7 +499,7 @@ func upsertMedicationSchedule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for month := range monthsTouched {
-		if _, err := collection.DeleteMany(ctx, bson.M{"month": month}); err != nil {
+		if _, err := collection.DeleteMany(ctx, bson.M{"month": month, "userId": userID}); err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to delete old schedule")
 			return
 		}
@@ -464,6 +529,12 @@ func upsertMedicationSchedule(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteMedicationScheduleMonth(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	month := r.URL.Query().Get("month")
 	if month == "" {
 		writeError(w, http.StatusBadRequest, "month query parameter is required (YYYY-MM)")
@@ -477,7 +548,7 @@ func deleteMedicationScheduleMonth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	res, err := db.Collection("medication_schedule").DeleteMany(ctx, bson.M{"month": month})
+	res, err := db.Collection("medication_schedule").DeleteMany(ctx, bson.M{"month": month, "userId": userID})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to clear medication schedule")
 		return
@@ -500,6 +571,9 @@ func keys(m map[string]struct{}) []string {
 }
 
 func main() {
+	// Load local env file if present.
+	_ = godotenv.Load()
+
 	// Connect to MongoDB
 	initMongo()
 
@@ -521,25 +595,45 @@ func main() {
 	corsMiddleware := cors.New(cors.Options{
 		AllowedOrigins:   allowedOrigins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept"},
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposedHeaders:   []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           int((12 * time.Hour).Seconds()),
 	})
 	r.Use(corsMiddleware.Handler)
 
-	// Routes
-	r.Get("/api/records", getRecords)
-	r.Post("/api/records", createRecord)
-	r.Delete("/api/records/{id}", deleteRecord)
-	r.Get("/api/watering-schedule/months", getWateringScheduleMonths)
-	r.Get("/api/watering-schedule", getWateringScheduleByMonth)
-	r.Post("/api/watering-schedule", upsertWateringSchedule)
-	r.Delete("/api/watering-schedule", deleteWateringScheduleMonth)
-	r.Get("/api/medication-schedule/months", getMedicationScheduleMonths)
-	r.Get("/api/medication-schedule", getMedicationScheduleByMonth)
-	r.Post("/api/medication-schedule", upsertMedicationSchedule)
-	r.Delete("/api/medication-schedule", deleteMedicationScheduleMonth)
+	// Public auth routes
+	r.Post("/api/auth/signup", signUp)
+	r.Post("/api/auth/signin", signIn)
+
+	// Protected API routes
+	r.Route("/api", func(api chi.Router) {
+		api.Use(authMiddleware)
+		api.Get("/auth/me", getSession)
+		api.Get("/records", getRecords)
+		api.Post("/records", createRecord)
+		api.Delete("/records/{id}", deleteRecord)
+		api.Get("/watering-schedule/months", getWateringScheduleMonths)
+		api.Get("/watering-schedule", getWateringScheduleByMonth)
+		api.Post("/watering-schedule", upsertWateringSchedule)
+		api.Delete("/watering-schedule", deleteWateringScheduleMonth)
+		api.Get("/medication-schedule/months", getMedicationScheduleMonths)
+		api.Get("/medication-schedule", getMedicationScheduleByMonth)
+		api.Post("/medication-schedule", upsertMedicationSchedule)
+		api.Delete("/medication-schedule", deleteMedicationScheduleMonth)
+	})
+
+	// Protected admin routes
+	r.Route("/api/admin", func(admin chi.Router) {
+		admin.Use(authMiddleware)
+		admin.Use(requireAdmin)
+		admin.Get("/users", getAdminUsers)
+		admin.Get("/users/{id}", getAdminUserByID)
+		admin.Patch("/users/{id}/role", patchAdminUserRole)
+		admin.Patch("/users/{id}/status", patchAdminUserStatus)
+		admin.Delete("/users/{id}", deleteAdminUser)
+		admin.Post("/users/{id}/force-logout", forceLogoutUser)
+	})
 
 	log.Println("Go API running on http://localhost:8080")
 	if err := http.ListenAndServe(":8080", r); err != nil {

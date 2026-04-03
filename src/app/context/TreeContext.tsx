@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { toast } from 'sonner';
+import { getAuthToken } from './AuthContext';
 
 export type ActionType = 'Irrigation' | 'Medication';
 
@@ -71,9 +72,22 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
   const [medicationSchedule, setMedicationSchedule] = useState<MedicationScheduleEntry[]>([]);
   const [medicationMonths, setMedicationMonths] = useState<string[]>([]);
 
+  const apiFetch = async (path: string, init?: RequestInit): Promise<Response> => {
+    const token = getAuthToken();
+    const headers = new Headers(init?.headers || {});
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers,
+    });
+    return response;
+  };
+
   const refreshWateringMonths = async (): Promise<string[]> => {
     try {
-      const response = await fetch(`${API_BASE}/watering-schedule/months`);
+      const response = await apiFetch(`/watering-schedule/months`);
       if (!response.ok) throw new Error(`Failed to fetch watering months: ${response.status}`);
       const months = (await response.json()) as string[];
       const normalized = Array.isArray(months) ? months.filter(Boolean).sort() : [];
@@ -88,7 +102,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const loadWateringSchedule = async (month: string): Promise<WateringScheduleEntry[]> => {
     try {
-      const response = await fetch(`${API_BASE}/watering-schedule?month=${encodeURIComponent(month)}`);
+      const response = await apiFetch(`/watering-schedule?month=${encodeURIComponent(month)}`);
       if (!response.ok) throw new Error(`Failed to fetch watering schedule: ${response.status}`);
       const entries = (await response.json()) as WateringScheduleEntry[];
       const normalized = Array.isArray(entries) ? entries : [];
@@ -103,7 +117,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const saveWateringSchedule = async (schedule: WateringScheduleEntry[]) => {
     try {
-      const response = await fetch(`${API_BASE}/watering-schedule`, {
+      const response = await apiFetch(`/watering-schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(schedule),
@@ -123,7 +137,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const clearWateringScheduleMonth = async (month: string) => {
     try {
-      const response = await fetch(`${API_BASE}/watering-schedule?month=${encodeURIComponent(month)}`, {
+      const response = await apiFetch(`/watering-schedule?month=${encodeURIComponent(month)}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -144,7 +158,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshMedicationMonths = async (): Promise<string[]> => {
     try {
-      const response = await fetch(`${API_BASE}/medication-schedule/months`);
+      const response = await apiFetch(`/medication-schedule/months`);
       if (!response.ok) throw new Error(`Failed to fetch medication months: ${response.status}`);
       const months = (await response.json()) as string[];
       const normalized = Array.isArray(months) ? months.filter(Boolean).sort() : [];
@@ -159,7 +173,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const loadMedicationSchedule = async (month: string): Promise<MedicationScheduleEntry[]> => {
     try {
-      const response = await fetch(`${API_BASE}/medication-schedule?month=${encodeURIComponent(month)}`);
+      const response = await apiFetch(`/medication-schedule?month=${encodeURIComponent(month)}`);
       if (!response.ok) {
         const body = await response.json().catch(() => null);
         const message = body?.error || `Failed to fetch medication schedule (${response.status})`;
@@ -178,7 +192,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const saveMedicationSchedule = async (schedule: MedicationScheduleEntry[]): Promise<void> => {
     try {
-      const response = await fetch(`${API_BASE}/medication-schedule`, {
+      const response = await apiFetch(`/medication-schedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(schedule),
@@ -200,7 +214,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const clearMedicationScheduleMonth = async (month: string): Promise<void> => {
     try {
-      const response = await fetch(`${API_BASE}/medication-schedule?month=${encodeURIComponent(month)}`, {
+      const response = await apiFetch(`/medication-schedule?month=${encodeURIComponent(month)}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -223,7 +237,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
     const fetchRecords = async () => {
       setIsLoadingRecords(true);
       try {
-        const response = await fetch(`${API_BASE}/records`);
+        const response = await apiFetch(`/records`);
         if (!response.ok) {
           throw new Error(`Failed to fetch records: ${response.status}`);
         }
@@ -244,11 +258,13 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
     };
 
     fetchRecords();
+    // Run once for provider mount; provider itself only mounts on authenticated routes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const addRecord = async (record: Omit<TreeRecord, 'id'>) => {
     try {
-      const response = await fetch(`${API_BASE}/records`, {
+      const response = await apiFetch(`/records`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -274,7 +290,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteRecord = async (id: string) => {
     try {
-      const response = await fetch(`${API_BASE}/records/${encodeURIComponent(id)}`, {
+      const response = await apiFetch(`/records/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       });
 

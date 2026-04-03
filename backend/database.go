@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -32,5 +33,15 @@ func initMongo() {
 	}
 
 	db = client.Database("orchard_db")
+
+	users := db.Collection("users")
+	_, err = users.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Printf("warning: failed creating users email index: %v", err)
+	}
+
 	log.Println("connected to MongoDB at", uri)
 }

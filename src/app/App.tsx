@@ -1,15 +1,15 @@
 import React from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
-import { TreeProvider } from './context/TreeContext';
+import { AuthProvider } from './context/AuthContext';
 import { Toaster } from 'sonner';
 
 function App() {
   return (
-    <TreeProvider>
+    <AuthProvider>
       <RouterProvider router={router} />
       <Toaster richColors position="bottom-right" />
-    </TreeProvider>
+    </AuthProvider>
   );
 }
 
