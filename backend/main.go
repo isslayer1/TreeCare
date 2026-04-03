@@ -603,6 +603,9 @@ func main() {
 	r.Use(corsMiddleware.Handler)
 
 	// Public auth routes
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+	})
 	r.Post("/api/auth/signup", signUp)
 	r.Post("/api/auth/signin", signIn)
 
@@ -635,8 +638,12 @@ func main() {
 		admin.Post("/users/{id}/force-logout", forceLogoutUser)
 	})
 
-	log.Println("Go API running on http://localhost:8080")
-	if err := http.ListenAndServe(":8080", r); err != nil {
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Go API running on http://localhost:%s", port)
+	if err := http.ListenAndServe(":"+port, r); err != nil {
 		log.Fatal(err)
 	}
 }
