@@ -45,6 +45,17 @@ export const WateringCalendar = () => {
     setCurrentPreviewMonth(selectedMonth);
   }, [selectedMonth]);
 
+  const handleMonthChange = async (month: string) => {
+    setSelectedMonth(month);
+    setCurrentPreviewMonth(month);
+    setIsLoading(true);
+    try {
+      await loadWateringSchedule(month);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -190,13 +201,7 @@ export const WateringCalendar = () => {
             <div className="text-sm font-semibold text-gray-800">Month</div>
             <select
               value={selectedMonth}
-              onChange={async (e) => {
-                const m = e.target.value;
-                setSelectedMonth(m);
-                setIsLoading(true);
-                await loadWateringSchedule(m);
-                setIsLoading(false);
-              }}
+              onChange={(e) => handleMonthChange(e.target.value)}
               className="w-full sm:w-56 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             >
               {monthOptions.map((m) => (
@@ -336,13 +341,7 @@ export const WateringCalendar = () => {
             <label className="text-sm font-semibold text-gray-800">Preview Month:</label>
             <select
               value={currentPreviewMonth}
-              onChange={async (e) => {
-                const m = e.target.value;
-                setCurrentPreviewMonth(m);
-                setIsLoading(true);
-                await loadWateringSchedule(m);
-                setIsLoading(false);
-              }}
+              onChange={(e) => handleMonthChange(e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             >
               {monthOptions.map((m) => (
@@ -356,10 +355,7 @@ export const WateringCalendar = () => {
               month={currentPreviewMonth ? new Date(currentPreviewMonth + '-01') : undefined}
               onMonthChange={async (month) => {
                 const m = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
-                setCurrentPreviewMonth(m);
-                setIsLoading(true);
-                await loadWateringSchedule(m);
-                setIsLoading(false);
+                await handleMonthChange(m);
               }}
               modifiers={{
                 watering: wateringSchedule.filter(e => e.shouldIrrigate).map(e => new Date(e.date))

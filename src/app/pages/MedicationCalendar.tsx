@@ -174,6 +174,7 @@ export const MedicationCalendar = () => {
 
   const handleMonthChange = async (month: string) => {
     setSelectedMonth(month);
+    setCurrentPreviewMonth(month);
     setIsLoading(true);
     try {
       await loadMedicationSchedule(month);
@@ -344,19 +345,7 @@ export const MedicationCalendar = () => {
             <label className="text-sm font-semibold text-gray-800">Preview Month:</label>
             <select
               value={currentPreviewMonth}
-              onChange={async (e) => {
-                const m = e.target.value;
-                setCurrentPreviewMonth(m);
-                setIsLoading(true);
-                try {
-                  await loadMedicationSchedule(m);
-                } catch (error) {
-                  console.error('Error loading medication schedule for month:', error);
-                  setErrorMessage('Failed to load schedule for selected month');
-                } finally {
-                  setIsLoading(false);
-                }
-              }}
+              onChange={(e) => handleMonthChange(e.target.value)}
               className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
             >
               {monthOptions.map((m) => (
@@ -370,16 +359,7 @@ export const MedicationCalendar = () => {
               month={currentPreviewMonth ? new Date(currentPreviewMonth + '-01') : undefined}
               onMonthChange={async (month) => {
                 const m = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
-                setCurrentPreviewMonth(m);
-                setIsLoading(true);
-                try {
-                  await loadMedicationSchedule(m);
-                } catch (error) {
-                  console.error('Error loading medication schedule for month:', error);
-                  setErrorMessage('Failed to load schedule for selected month');
-                } finally {
-                  setIsLoading(false);
-                }
+                await handleMonthChange(m);
               }}
               modifiers={{
                 medication: medicationSchedule.filter(e => e.shouldApply).map(e => new Date(e.date))

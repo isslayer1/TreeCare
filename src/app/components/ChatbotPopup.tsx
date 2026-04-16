@@ -3,6 +3,7 @@ import { Send, Bot, User, Loader2, MessageCircle, X, Minimize2 } from 'lucide-re
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
+import { API_BASE, getAuthToken } from '../context/AuthContext';
 
 interface Message {
   id: string;
@@ -11,44 +12,33 @@ interface Message {
   timestamp: Date;
 }
 
-// Mock AI responses for olive tree care recommendations
-const getAIResponse = (userMessage: string): string => {
-  const lowerMessage = userMessage.toLowerCase();
-  
-  if (lowerMessage.includes('irrigation') || lowerMessage.includes('water')) {
-    return "For olive trees, irrigation is crucial especially during dry periods. Young trees (1-3 years) need weekly watering, while mature trees can handle deeper, less frequent irrigation. During fruit development (May-August), ensure consistent moisture. A good rule of thumb is 40-50 gallons per week for mature trees. Monitor soil moisture at 12-18 inches depth.";
+const getAIResponse = async (userMessage: string): Promise<string> => {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
   }
-  
-  if (lowerMessage.includes('medication') || lowerMessage.includes('treatment') || lowerMessage.includes('disease') || lowerMessage.includes('pest')) {
-    return "Common olive tree issues include peacock spot fungus, olive fruit fly, and verticillium wilt. For peacock spot, apply copper-based fungicides in fall/spring. For olive fruit fly, use kaolin clay or spinosad-based treatments. Always follow organic practices when possible and apply treatments during cooler hours to avoid leaf burn.";
+
+  const response = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ message: userMessage }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch assistant response');
   }
-  
-  if (lowerMessage.includes('fertiliz')) {
-    return "Olive trees benefit from nitrogen-rich fertilizer in spring (March-April). Apply 1-2 pounds of actual nitrogen per year of tree age, up to 20 pounds for mature trees. Use slow-release organic fertilizers and avoid over-fertilizing, which can reduce fruit quality. Compost around the base is also beneficial.";
+
+  const payload = await response.json().catch(() => null) as { reply?: string; message?: string } | null;
+  const text = payload?.reply ?? payload?.message;
+  if (typeof text === 'string' && text.trim() !== '') {
+    return text;
   }
-  
-  if (lowerMessage.includes('prune') || lowerMessage.includes('trim')) {
-    return "Prune olive trees in late winter or early spring before new growth begins. Remove dead, damaged, or crossing branches. Maintain an open center (vase shape) to allow light penetration and air circulation. Remove suckers from the base. Light annual pruning is better than severe pruning every few years.";
-  }
-  
-  if (lowerMessage.includes('harvest')) {
-    return "Olive harvest timing depends on your goal: green olives are harvested in early fall (September-October), while black olives are harvested in late fall to early winter (November-January). For oil production, harvest when olives are turning from green to purple for optimal oil quality. Hand-picking or using mechanical shakers are common methods.";
-  }
-  
-  if (lowerMessage.includes('spacing') || lowerMessage.includes('plant')) {
-    return "Space olive trees 15-20 feet apart for standard varieties, or 8-10 feet for dwarf varieties. They need full sun (at least 6 hours daily) and well-draining soil with pH 6.0-8.0. Olive trees are hardy in USDA zones 8-11 and can tolerate drought once established.";
-  }
-  
-  if (lowerMessage.includes('thank')) {
-    return "You're welcome! Feel free to ask me anything about olive tree care, irrigation schedules, disease management, or general cultivation practices. I'm here to help your olive orchard thrive! 🌿";
-  }
-  
-  if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
-    return "Hello! I'm your olive tree care assistant. I can help you with irrigation schedules, disease management, fertilization, pruning techniques, and general olive cultivation advice. What would you like to know?";
-  }
-  
-  // Default response
-  return "I'm specialized in olive tree care and management. I can help with irrigation scheduling, disease and pest management, fertilization, pruning techniques, harvesting guidance, and general cultivation practices. Could you please provide more details about what you'd like to know regarding your olive trees?";
+
+  throw new Error('Assistant returned an empty response');
 };
 
 const predefinedQuestions = [
@@ -103,10 +93,12 @@ export const ChatbotPopup = () => {
     setInputValue('');
     setIsTyping(true);
 
-    // Simulate AI thinking time
-    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 700));
-
-    const aiResponse = getAIResponse(messageToSend);
+    let aiResponse = "I'm having trouble responding right now. Please try again in a moment.";
+    try {
+      aiResponse = await getAIResponse(messageToSend);
+    } catch {
+      // Keep a user-friendly fallback so the chat UI remains responsive.
+    }
     
     const assistantMessage: Message = {
       id: (Date.now() + 1).toString(),
@@ -186,7 +178,7 @@ export const ChatbotPopup = () => {
         {!isMinimized && (
           <>
             {/* Chat Messages Area */}
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 min-h-0 p-4">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div

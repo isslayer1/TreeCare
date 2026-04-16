@@ -43,5 +43,14 @@ func initMongo() {
 		log.Printf("warning: failed creating users email index: %v", err)
 	}
 
+	chatSessions := db.Collection("chat_sessions")
+	_, err = chatSessions.Indexes().CreateOne(context.Background(), mongo.IndexModel{
+		Keys:    bson.D{{Key: "user_id", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	})
+	if err != nil {
+		log.Printf("warning: failed creating chat_sessions user_id index: %v", err)
+	}
+
 	log.Println("connected to MongoDB at", uri)
 }
