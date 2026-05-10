@@ -11,6 +11,18 @@ export const TreeList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
+  const formatDisplayDate = (value: string) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = String(parsed.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
   const monthOptions = useMemo(() => {
     const months = new Set<string>();
     records.forEach((record) => {
@@ -144,7 +156,7 @@ export const TreeList = () => {
                       {record.notes && <span className="block text-xs text-gray-400 mt-1 truncate">{record.notes}</span>}
                     </td>
                     <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
-                      {new Date(record.date).toLocaleDateString()}
+                      {formatDisplayDate(record.date)}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button 

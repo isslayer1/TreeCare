@@ -29,7 +29,11 @@ const getAIResponse = async (userMessage: string): Promise<string> => {
   });
 
   if (!response.ok) {
-    throw new Error('Failed to fetch assistant response');
+    const payload = await response.json().catch(() => null) as { error?: string } | null;
+    const errorMessage = typeof payload?.error === 'string' && payload.error.trim() !== ''
+      ? payload.error
+      : 'Failed to fetch assistant response';
+    throw new Error(errorMessage);
   }
 
   const payload = await response.json().catch(() => null) as { reply?: string; message?: string } | null;
@@ -96,8 +100,10 @@ export const ChatbotPopup = () => {
     let aiResponse = "I'm having trouble responding right now. Please try again in a moment.";
     try {
       aiResponse = await getAIResponse(messageToSend);
-    } catch {
-      // Keep a user-friendly fallback so the chat UI remains responsive.
+    } catch (error) {
+      if (error instanceof Error && error.message.trim() !== '') {
+        aiResponse = error.message;
+      }
     }
     
     const assistantMessage: Message = {

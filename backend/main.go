@@ -46,8 +46,7 @@ func getRecords(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cur.Close(ctx)
 
-	var records =
-	 make([]TreeRecord, 0)
+	var records = make([]TreeRecord, 0)
 	if err := cur.All(ctx, &records); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to decode records")
 		return

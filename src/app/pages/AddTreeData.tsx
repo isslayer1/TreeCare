@@ -1,28 +1,81 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { useTreeContext } from '../context/TreeContext';
 import { ActionType, TreeRecord } from '../context/TreeContext';
-import { Droplets, Syringe, Calendar, Check, AlertCircle } from 'lucide-react';
+import { Droplets, Syringe, Calendar as CalendarIcon, Check, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
+import { Calendar } from '../components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 
 type FormData = Omit<TreeRecord, 'id'>;
 
 export const AddTreeData = () => {
   const { addRecord } = useTreeContext();
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>();
+  const { control, register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+    defaultValues: {
+      date: '',
+    },
+  });
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const pad = (n: number) => String(n).padStart(2, '0');
   const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+
+  const formatDateForDisplay = (date: Date) => {
+    const day = pad(date.getDate());
+    const month = pad(date.getMonth() + 1);
+    const year = String(date.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
+  const parseDisplayDateToIso = (value?: string | null) => {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+    if (!match) {
+      return null;
+    }
+
+    const day = Number(match[1]);
+    const month = Number(match[2]);
+    const year = 2000 + Number(match[3]);
+    const parsed = new Date(year, month - 1, day);
+
+    if (
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month - 1 ||
+      parsed.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}`;
+  };
+
+  const parseDisplayDateToDate = (value: string) => {
+    const iso = parseDisplayDateToIso(value);
+    if (!iso) {
+      return undefined;
+    }
+
+    const parsed = new Date(`${iso}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
 
   const onSubmit = async (data: FormData) => {
     // Automatically set treeType to 'Olive'
     try {
-      await addRecord({ ...data, treeType: 'Olive' });
+      const normalizedDate = parseDisplayDateToIso(data.date);
+      if (!normalizedDate) {
+        toast.error('Date must be in DD/MM/YY format.');
+        return;
+      }
+
+      await addRecord({ ...data, date: normalizedDate, treeType: 'Olive' });
       setSuccess(true);
       reset();
       setTimeout(() => setSuccess(false), 3000);
@@ -112,23 +165,48 @@ export const AddTreeData = () => {
             {/* Date */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">Date</label>
-              <div className="relative">
-                <input
-                  type="date"
-                  max={todayStr}
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-                  {...register("date", {
-                    required: "Date is required",
-                    validate: (value) => {
-                      const isValidFormat = /^\d{4}-\d{2}-\d{2}$/.test(value);
-                      if (!isValidFormat) return "Date must be in YYYY-MM-DD format";
-                      if (value > todayStr) return "Date cannot be in the future";
-                      return true;
-                    },
-                  })}
-                />
-                <Calendar className="w-4 h-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
-              </div>
+              <Controller
+                control={control}
+                name="date"
+                rules={{
+                  required: 'Date is required',
+                  validate: (value) => {
+                    const normalizedDate = parseDisplayDateToIso(value);
+                    if (!normalizedDate) return 'Date must be selected from the calendar';
+                    if (normalizedDate > todayStr) return 'Date cannot be in the future';
+                    return true;
+                  },
+                }}
+                render={({ field }) => (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className={clsx(
+                          'w-full px-4 py-2.5 rounded-lg border text-left transition-colors flex items-center justify-between',
+                          field.value ? 'border-gray-300 text-gray-900' : 'border-gray-300 text-gray-400',
+                          errors.date ? 'border-red-300 bg-red-50' : 'focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500',
+                        )}
+                      >
+                        <span>{field.value || 'Select a date'}</span>
+                        <CalendarIcon className="w-4 h-4 text-gray-400" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={parseDisplayDateToDate(field.value)}
+                        onSelect={(date) => {
+                          if (!date) return;
+                          field.onChange(formatDateForDisplay(date));
+                        }}
+                        disabled={(date) => date > today}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                )}
+              />
               {errors.date && <p className="text-xs text-red-500 mt-1">{errors.date.message}</p>}
             </div>
           </div>

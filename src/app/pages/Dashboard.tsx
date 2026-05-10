@@ -13,16 +13,37 @@ export const Dashboard = () => {
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
+  const formatDisplayDate = (value: string) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    const day = String(parsed.getDate()).padStart(2, '0');
+    const month = String(parsed.getMonth() + 1).padStart(2, '0');
+    const year = String(parsed.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
   const currentMonth = useMemo(() => {
     const now = new Date();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     return `${now.getFullYear()}-${m}`;
   }, []);
 
+  const recordMonths = useMemo(() => {
+    const months = new Set<string>();
+    records.forEach((record) => {
+      if (typeof record.date !== 'string' || record.date.length < 7) return;
+      months.add(record.date.slice(0, 7));
+    });
+    return Array.from(months).sort();
+  }, [records]);
+
   const monthOptions = useMemo(() => {
-    const set = new Set([currentMonth, ...(wateringMonths || []), ...(medicationMonths || [])]);
+    const set = new Set([currentMonth, ...recordMonths, ...(wateringMonths || []), ...(medicationMonths || [])]);
     return Array.from(set).filter(Boolean).sort();
-  }, [currentMonth, medicationMonths, wateringMonths]);
+  }, [currentMonth, medicationMonths, recordMonths, wateringMonths]);
 
   const handleMonthChange = async (month: string) => {
     setSelectedMonth(month);
@@ -44,7 +65,7 @@ export const Dashboard = () => {
         refreshWateringMonths(),
         refreshMedicationMonths(),
       ]);
-      const options = Array.from(new Set([currentMonth, ...waterMonths, ...medMonths])).filter(Boolean).sort();
+      const options = Array.from(new Set([currentMonth, ...recordMonths, ...waterMonths, ...medMonths])).filter(Boolean).sort();
       const initial = options.includes(currentMonth) ? currentMonth : options[options.length - 1] || currentMonth;
       setSelectedMonth(initial);
       await Promise.all([
@@ -201,7 +222,7 @@ export const Dashboard = () => {
         addLine('No activity for this month.');
       } else {
         chartData.forEach((row) => {
-          addLine(`${row.date} | ${row.irrigation} | ${row.medication} | ${row.missedIrrigation} | ${row.missedMedication}`, 9, 5);
+          addLine(`${formatDisplayDate(row.date)} | ${row.irrigation} | ${row.medication} | ${row.missedIrrigation} | ${row.missedMedication}`, 9, 5);
         });
       }
 
@@ -211,7 +232,7 @@ export const Dashboard = () => {
         addLine('No irrigation records for this month.');
       } else {
         irrigationRecordsForMonth.forEach((record) => {
-          addLine(`${record.date} | ${record.treeId} | ${record.details} | ${record.notes || '-'}`, 9, 5);
+          addLine(`${formatDisplayDate(record.date)} | ${record.treeId} | ${record.details} | ${record.notes || '-'}`, 9, 5);
         });
       }
       addLine(`Missed irrigation dates: ${missedIrrigationForMonth.length ? missedIrrigationForMonth.join(', ') : 'None'}`, 9, 5);
@@ -222,7 +243,7 @@ export const Dashboard = () => {
         addLine('No medication records for this month.');
       } else {
         medicationRecordsForMonth.forEach((record) => {
-          addLine(`${record.date} | ${record.treeId} | ${record.details} | ${record.notes || '-'}`, 9, 5);
+          addLine(`${formatDisplayDate(record.date)} | ${record.treeId} | ${record.details} | ${record.notes || '-'}`, 9, 5);
         });
       }
       addLine(`Missed medication dates: ${missedMedicationForMonth.length ? missedMedicationForMonth.join(', ') : 'None'}`, 9, 5);
@@ -350,9 +371,10 @@ export const Dashboard = () => {
             <ResponsiveContainer width="100%" height="100%" minHeight={256}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="date" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
+                <XAxis dataKey="date" tickFormatter={formatDisplayDate} tick={{fontSize: 12}} tickLine={false} axisLine={false} />
                 <YAxis tick={{fontSize: 12}} tickLine={false} axisLine={false} />
                 <Tooltip 
+                  labelFormatter={formatDisplayDate}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                 />
                 <Legend />
@@ -369,9 +391,9 @@ export const Dashboard = () => {
             <ResponsiveContainer width="100%" height="100%" minHeight={256}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
-                <XAxis dataKey="date" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
+                <XAxis dataKey="date" tickFormatter={formatDisplayDate} tick={{fontSize: 12}} tickLine={false} axisLine={false} />
                 <YAxis tick={false} tickLine={false} axisLine={false} />
-                <Tooltip cursor={{fill: 'transparent'}} />
+                <Tooltip cursor={{fill: 'transparent'}} labelFormatter={formatDisplayDate} />
                 <Legend />
                 <Bar dataKey="irrigation" stackId="activity" fill="#10b981" radius={[2, 2, 0, 0]} name="Irrigation" />
                 <Bar dataKey="missedIrrigation" stackId="activity" fill="#f87171" name="Missed Irrigation" />
@@ -411,9 +433,9 @@ export const Dashboard = () => {
             <h3 className="text-lg font-semibold mb-3">Activity Over Time</h3>
             <LineChart width={920} height={280} data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <XAxis dataKey="date" tickFormatter={formatDisplayDate} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-              <Tooltip />
+              <Tooltip labelFormatter={formatDisplayDate} />
               <Legend />
               <Line type="monotone" dataKey="irrigation" stroke="#3b82f6" strokeWidth={2} name="Irrigation" dot={false} />
               <Line type="monotone" dataKey="medication" stroke="#9333ea" strokeWidth={2} name="Medication" dot={false} />
@@ -424,9 +446,9 @@ export const Dashboard = () => {
             <h3 className="text-lg font-semibold mb-3">Activity Distribution</h3>
             <BarChart width={920} height={280} data={chartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+              <XAxis dataKey="date" tickFormatter={formatDisplayDate} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
-              <Tooltip />
+              <Tooltip labelFormatter={formatDisplayDate} />
               <Legend />
               <Bar dataKey="irrigation" stackId="activity" fill="#10b981" name="Irrigation" />
               <Bar dataKey="missedIrrigation" stackId="activity" fill="#f87171" name="Missed Irrigation" />
@@ -455,7 +477,7 @@ export const Dashboard = () => {
                 )}
                 {irrigationRecordsForMonth.map((record) => (
                   <tr key={record.id}>
-                    <td className="border border-gray-200 px-2 py-1">{record.date}</td>
+                    <td className="border border-gray-200 px-2 py-1">{formatDisplayDate(record.date)}</td>
                     <td className="border border-gray-200 px-2 py-1">{record.treeId}</td>
                     <td className="border border-gray-200 px-2 py-1">{record.details}</td>
                     <td className="border border-gray-200 px-2 py-1">{record.notes || '-'}</td>
@@ -489,7 +511,7 @@ export const Dashboard = () => {
                 )}
                 {medicationRecordsForMonth.map((record) => (
                   <tr key={record.id}>
-                    <td className="border border-gray-200 px-2 py-1">{record.date}</td>
+                    <td className="border border-gray-200 px-2 py-1">{formatDisplayDate(record.date)}</td>
                     <td className="border border-gray-200 px-2 py-1">{record.treeId}</td>
                     <td className="border border-gray-200 px-2 py-1">{record.details}</td>
                     <td className="border border-gray-200 px-2 py-1">{record.notes || '-'}</td>
