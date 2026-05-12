@@ -365,7 +365,7 @@ func getMedicationScheduleMonths(w http.ResponseWriter, r *http.Request) {
 
 	monthsRaw, err := db.Collection("medication_schedule").Distinct(ctx, "month", bson.M{"userId": userID})
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "failed to load medication months")
 		return
 	}
 
@@ -377,11 +377,7 @@ func getMedicationScheduleMonths(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Strings(months)
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(months); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	writeJSON(w, http.StatusOK, months)
 }
 
 func getMedicationScheduleByMonth(w http.ResponseWriter, r *http.Request) {

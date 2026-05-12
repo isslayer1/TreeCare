@@ -372,6 +372,99 @@ export const MedicationCalendar = () => {
           </div>
         </Card>
       )}
+
+      {/* Medication Entries Display */}
+      {medicationSchedule.length > 0 && (
+        <Card className="p-6 bg-gradient-to-br from-white to-gray-50">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-800">Medication Schedule</h2>
+            <span className="text-sm font-medium text-gray-500 bg-gray-200 px-3 py-1 rounded-full">
+              {medicationSchedule.length} entries
+            </span>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {medicationSchedule.map((entry, idx) => (
+              <div
+                key={idx}
+                className={`group relative p-4 rounded-xl border transition-all duration-300 ${
+                  entry.shouldApply
+                    ? 'border-emerald-200 bg-white hover:shadow-lg hover:border-emerald-400'
+                    : 'border-gray-200 bg-gray-100 hover:shadow-md hover:border-gray-300 opacity-75'
+                }`}
+              >
+                {/* Status Indicator */}
+                <div className="absolute top-0 right-0">
+                  <div
+                    className={`w-3 h-3 rounded-full ${
+                      entry.shouldApply ? 'bg-emerald-500' : 'bg-gray-400'
+                    }`}
+                  />
+                </div>
+
+                {/* Date */}
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Date
+                  </p>
+                  <p className="text-lg font-bold text-gray-900">
+                    {new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric'
+                    })}
+                  </p>
+                </div>
+
+                {/* Medication Type */}
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Type
+                  </p>
+                  <div className="mt-1">
+                    <span className="inline-block px-3 py-1 rounded-full text-sm font-semibold bg-purple-100 text-purple-700">
+                      {entry.medicationType}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Brand */}
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Brand
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 mt-1">
+                    {entry.recommendedBrand || '—'}
+                  </p>
+                </div>
+
+                {/* Action Status */}
+                <div className="flex items-center gap-2 pt-3 border-t border-gray-200">
+                  <div
+                    className={`flex items-center justify-center w-5 h-5 rounded-full ${
+                      entry.shouldApply
+                        ? 'bg-emerald-100 text-emerald-600'
+                        : 'bg-gray-200 text-gray-500'
+                    }`}
+                  >
+                    {entry.shouldApply ? (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium text-gray-600">
+                    {entry.shouldApply ? 'Apply' : 'Skip'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 };
