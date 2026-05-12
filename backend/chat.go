@@ -77,6 +77,9 @@ func trimChatHistory(messages []chatMessage) []chatMessage {
 func groqConfigFromEnv() (endpoint string, model string, apiKey string, err error) {
 	apiKey = strings.TrimSpace(os.Getenv("GROQ_API_KEY"))
 	if apiKey == "" {
+		apiKey = strings.TrimSpace(localGroqAPIKey)
+	}
+	if apiKey == "" {
 		return "", "", "", errGroqNotConfigured
 	}
 
