@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { useTreeContext } from '../context/TreeContext';
 import { ActionType, TreeRecord } from '../context/TreeContext';
 import { Droplets, Syringe, Calendar as CalendarIcon, Check, AlertCircle } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { Calendar } from '../components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popove
 type FormData = Omit<TreeRecord, 'id'>;
 
 export const AddTreeData = () => {
-  const { addRecord } = useTreeContext();
+  const { records, addRecord, updateRecord } = useTreeContext();
   const { control, register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     defaultValues: {
       date: '',
@@ -20,6 +20,14 @@ export const AddTreeData = () => {
   });
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editRecordId = searchParams.get('edit');
+
+  const recordToEdit = useMemo(
+    () => records.find((record) => record.id === editRecordId),
+    [records, editRecordId]
+  );
+  const isEditing = Boolean(recordToEdit);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -66,6 +74,28 @@ export const AddTreeData = () => {
     return Number.isNaN(parsed.getTime()) ? undefined : parsed;
   };
 
+  useEffect(() => {
+    if (!recordToEdit) {
+      reset({
+        treeId: '',
+        actionType: undefined,
+        date: '',
+        details: '',
+        notes: '',
+      });
+      return;
+    }
+
+    const parsedDate = new Date(`${recordToEdit.date}T00:00:00`);
+    reset({
+      treeId: recordToEdit.treeId,
+      actionType: recordToEdit.actionType,
+      date: Number.isNaN(parsedDate.getTime()) ? '' : formatDateForDisplay(parsedDate),
+      details: recordToEdit.details,
+      notes: recordToEdit.notes || '',
+    });
+  }, [recordToEdit, reset]);
+
   const onSubmit = async (data: FormData) => {
     // Automatically set treeType to 'Olive'
     try {
@@ -75,9 +105,16 @@ export const AddTreeData = () => {
         return;
       }
 
-      await addRecord({ ...data, date: normalizedDate, treeType: 'Olive' });
+      if (isEditing && recordToEdit) {
+        await updateRecord(recordToEdit.id, { ...data, date: normalizedDate, treeType: 'Olive' });
+        navigate('/list');
+      } else {
+        await addRecord({ ...data, date: normalizedDate, treeType: 'Olive' });
+      }
       setSuccess(true);
-      reset();
+      if (!isEditing) {
+        reset();
+      }
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
       toast.error('Unable to save entry. Please try again.');
@@ -87,15 +124,15 @@ export const AddTreeData = () => {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8 text-center md:text-left">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Record New Activity</h1>
-        <p className="text-gray-500">Log irrigation or medication details for your olive trees.</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">{isEditing ? 'Edit Activity' : 'Record New Activity'}</h1>
+        <p className="text-gray-500">{isEditing ? 'Update the selected olive tree entry.' : 'Log irrigation or medication details for your olive trees.'}</p>
       </div>
 
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="bg-emerald-50 px-6 py-4 border-b border-emerald-100 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-emerald-900 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            New Entry Form
+            {isEditing ? 'Edit Entry Form' : 'New Entry Form'}
           </h2>
           <span className="text-sm text-emerald-600 font-medium">Step 1 of 1</span>
         </div>
@@ -240,16 +277,22 @@ export const AddTreeData = () => {
           <div className="pt-4 flex items-center justify-end gap-4">
              <button
               type="button"
-              onClick={() => reset()}
+              onClick={() => {
+                if (isEditing) {
+                  navigate('/list');
+                  return;
+                }
+                reset();
+              }}
               className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
             >
-              Reset
+              {isEditing ? 'Cancel' : 'Reset'}
             </button>
             <button
               type="submit"
               className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all focus:ring-4 focus:ring-emerald-200"
             >
-              Save Record
+              {isEditing ? 'Update Record' : 'Save Record'}
             </button>
           </div>
         </form>

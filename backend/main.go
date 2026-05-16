@@ -105,6 +105,76 @@ func createRecord(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, rec)
 }
 
+// updateRecord replaces an existing tree record by its MongoDB ObjectID passed as /api/records/{id}
+func updateRecord(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromContext(r.Context())
+	if userID == "" {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	if idStr == "" {
+		writeError(w, http.StatusBadRequest, "id parameter is required")
+		return
+	}
+
+	oid, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid id format")
+		return
+	}
+
+	var rec TreeRecord
+	if err := json.NewDecoder(r.Body).Decode(&rec); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+
+	if rec.TreeID == "" {
+		writeError(w, http.StatusBadRequest, "treeId is required")
+		return
+	}
+	if rec.ActionType != "Irrigation" && rec.ActionType != "Medication" {
+		writeError(w, http.StatusBadRequest, "actionType must be either 'Irrigation' or 'Medication'")
+		return
+	}
+	if rec.Date == "" {
+		writeError(w, http.StatusBadRequest, "date is required")
+		return
+	}
+	if _, err := time.Parse("2006-01-02", rec.Date); err != nil {
+		writeError(w, http.StatusBadRequest, "date must be in YYYY-MM-DD format")
+		return
+	}
+
+	if rec.TreeType == "" {
+		rec.TreeType = "Olive"
+	}
+	rec.UserID = userID
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	res, err := db.Collection("tree_records").UpdateOne(
+		ctx,
+		bson.M{"_id": oid, "userId": userID},
+		bson.M{"$set": rec},
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to update record")
+		return
+	}
+
+	if res.MatchedCount == 0 {
+		writeError(w, http.StatusNotFound, "record not found")
+		return
+	}
+
+	rec.ID = oid
+	writeJSON(w, http.StatusOK, rec)
+}
+
 // deleteRecord deletes a record by its MongoDB ObjectID passed as /api/records/{id}
 func deleteRecord(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromContext(r.Context())
@@ -608,6 +678,7 @@ func main() {
 		api.Post("/chat", chatWithAssistant)
 		api.Get("/records", getRecords)
 		api.Post("/records", createRecord)
+		api.Put("/records/{id}", updateRecord)
 		api.Delete("/records/{id}", deleteRecord)
 		api.Get("/watering-schedule/months", getWateringScheduleMonths)
 		api.Get("/watering-schedule", getWateringScheduleByMonth)

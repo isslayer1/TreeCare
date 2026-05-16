@@ -31,6 +31,7 @@ interface TreeContextType {
   records: TreeRecord[];
   isLoadingRecords: boolean;
   addRecord: (record: Omit<TreeRecord, 'id'>) => Promise<void>;
+  updateRecord: (id: string, record: Omit<TreeRecord, 'id'>) => Promise<void>;
   deleteRecord: (id: string) => Promise<void>;
   wateringSchedule: WateringScheduleEntry[];
   setWateringSchedule: (schedule: WateringScheduleEntry[]) => void;
@@ -288,6 +289,32 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateRecord = async (id: string, record: Omit<TreeRecord, 'id'>) => {
+    try {
+      const response = await apiFetch(`/records/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(record),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const message = body?.error || `Failed to update record (${response.status})`;
+        throw new Error(message);
+      }
+
+      const updated: TreeRecord = await response.json();
+      setRecords((prev) => prev.map((entry) => (entry.id === id ? updated : entry)));
+      toast.success('Record updated');
+    } catch (error) {
+      console.error('Error updating record via API', error);
+      toast.error('Failed to update record');
+      throw error;
+    }
+  };
+
   const deleteRecord = async (id: string) => {
     try {
       const response = await apiFetch(`/records/${encodeURIComponent(id)}`, {
@@ -353,6 +380,7 @@ export const TreeProvider = ({ children }: { children: ReactNode }) => {
       records, 
       isLoadingRecords,
       addRecord, 
+      updateRecord,
       deleteRecord, 
       wateringSchedule, 
       setWateringSchedule,

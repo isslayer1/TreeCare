@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useTreeContext } from '../context/TreeContext';
-import { Search, Filter, Trash2, Droplets, Syringe, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Search, Filter, Trash2, Pencil, Droplets, Syringe, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useNavigate } from 'react-router';
 
 export const TreeList = () => {
   const { records, deleteRecord, isLoadingRecords } = useTreeContext();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('All');
   const [selectedMonth, setSelectedMonth] = useState<string>('All');
@@ -159,13 +161,22 @@ export const TreeList = () => {
                       {formatDisplayDate(record.date)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => deleteRecord(record.id)}
-                        className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
-                        title="Delete Record"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          onClick={() => navigate(`/add?edit=${record.id}`)}
+                          className="text-gray-400 hover:text-emerald-600 transition-colors p-2 rounded-full hover:bg-emerald-50"
+                          title="Edit Record"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => deleteRecord(record.id)}
+                          className="text-gray-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
+                          title="Delete Record"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
