@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import { useLocale } from '../context/LocaleContext';
 
 export const SignIn = () => {
   const navigate = useNavigate();
   const { signIn, isAuthenticated } = useAuth();
+  const { t, toggleLocale, locale } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +21,7 @@ export const SignIn = () => {
     setError(null);
 
     if (!email.trim() || !password.trim()) {
-      setError('Please fill in both email and password.');
+      setError(t('fillCredentials'));
       return;
     }
 
@@ -38,12 +40,29 @@ export const SignIn = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-teal-50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white border border-emerald-100 shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-emerald-900 text-center">Sign In</h1>
-        <p className="text-sm text-gray-500 text-center mt-2">Access your TreeCare workspace.</p>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-emerald-900">{t('signIn')}</h1>
+            <p className="text-sm text-gray-500 mt-2">{t('accessWorkspace')}</p>
+          </div>
+          <div className="text-right">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-500">
+              English / Français
+            </div>
+            <button
+              type="button"
+              onClick={toggleLocale}
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+              aria-label={t('language')}
+            >
+              {locale === 'en' ? 'ENG' : 'FR'}
+            </button>
+          </div>
+        </div>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
             <input
               type="email"
               autoComplete="email"
@@ -56,7 +75,7 @@ export const SignIn = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('password')}</label>
             <input
               type="password"
               autoComplete="current-password"
@@ -75,13 +94,13 @@ export const SignIn = () => {
             disabled={isSubmitting}
             className="w-full rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-400 text-white font-semibold py-2.5 transition-colors"
           >
-            {isSubmitting ? 'Signing In...' : 'Sign In'}
+            {isSubmitting ? t('signingIn') : t('signIn')}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-emerald-700 hover:text-emerald-800 font-semibold">Sign Up</Link>
+          {t('dontHaveAccount')} {' '}
+          <Link to="/signup" className="text-emerald-700 hover:text-emerald-800 font-semibold">{t('signUp')}</Link>
         </p>
       </div>
     </div>

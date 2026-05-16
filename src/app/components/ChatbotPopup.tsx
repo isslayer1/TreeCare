@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { ScrollArea } from './ui/scroll-area';
 import { API_BASE, getAuthToken } from '../context/AuthContext';
+import { useLocale } from '../context/LocaleContext';
 
 interface Message {
   id: string;
@@ -45,20 +46,15 @@ const getAIResponse = async (userMessage: string): Promise<string> => {
   throw new Error('Assistant returned an empty response');
 };
 
-const predefinedQuestions = [
-  "How often should I water olive trees?",
-  "What are common olive tree diseases?",
-  "When should I fertilize my olive trees?",
-];
-
 export const ChatbotPopup = () => {
+  const { locale, t } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "Hello! I'm your olive tree care assistant. I can provide recommendations on irrigation, medication, fertilization, pruning, and general care. How can I help?",
+      content: t('assistantGreeting'),
       timestamp: new Date(),
     }
   ]);
@@ -80,6 +76,23 @@ export const ChatbotPopup = () => {
       setUnreadCount(0);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    setMessages((currentMessages) => {
+      if (currentMessages.length !== 1 || currentMessages[0]?.role !== 'assistant') {
+        return currentMessages;
+      }
+
+      return [
+        {
+          ...currentMessages[0],
+          content: t('assistantGreeting'),
+        },
+      ];
+    });
+  }, [locale, t]);
+
+  const predefinedQuestions = [t('question1'), t('question2'), t('question3')];
 
   const handleSendMessage = async (message?: string) => {
     const messageToSend = message || inputValue.trim();
@@ -141,7 +154,7 @@ export const ChatbotPopup = () => {
           </span>
         )}
         <span className="absolute right-full mr-3 bg-gray-900 text-white px-3 py-1 rounded-lg text-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          Ask AI Assistant
+          {t('askAssistant')}
         </span>
       </button>
     );
@@ -161,8 +174,8 @@ export const ChatbotPopup = () => {
               <Bot size={20} />
             </div>
             <div>
-              <h3 className="font-semibold">AI Assistant</h3>
-              <p className="text-xs text-emerald-100">Olive tree care expert</p>
+              <h3 className="font-semibold">{t('assistantTitle')}</h3>
+              <p className="text-xs text-emerald-100">{t('assistantSubtitle')}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -240,7 +253,7 @@ export const ChatbotPopup = () => {
             {/* Quick Questions */}
             {messages.length === 1 && (
               <div className="px-4 py-2 border-t border-gray-100 bg-gray-50">
-                <p className="text-[10px] font-medium text-gray-500 mb-1.5">Quick questions:</p>
+                <p className="text-[10px] font-medium text-gray-500 mb-1.5">{t('quickQuestions')}</p>
                 <div className="flex flex-col gap-1.5">
                   {predefinedQuestions.map((question, index) => (
                     <button
@@ -262,7 +275,7 @@ export const ChatbotPopup = () => {
                   value={inputValue}
                   onChange={(e) => setInputValue(e.target.value)}
                   onKeyPress={handleKeyPress}
-                  placeholder="Ask about your olive trees..."
+                  placeholder={t('assistantPlaceholder')}
                   className="flex-1 text-sm rounded-full border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                   disabled={isTyping}
                 />

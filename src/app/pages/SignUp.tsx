@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
+import { useLocale } from '../context/LocaleContext';
 
 export const SignUp = () => {
   const navigate = useNavigate();
   const { signUp, isAuthenticated } = useAuth();
+  const { t, toggleLocale, locale } = useLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -20,7 +22,7 @@ export const SignUp = () => {
     setError(null);
 
     if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
-      setError('Please complete all fields.');
+      setError(t('fillAllFields'));
       return;
     }
 
@@ -38,12 +40,29 @@ export const SignUp = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-emerald-50 via-white to-teal-50 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white border border-emerald-100 shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-emerald-900 text-center">Sign Up</h1>
-        <p className="text-sm text-gray-500 text-center mt-2">Create your private TreeCare account.</p>
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <div>
+            <h1 className="text-3xl font-bold text-emerald-900">{t('signUp')}</h1>
+            <p className="text-sm text-gray-500 mt-2">{t('createAccount')}</p>
+          </div>
+          <div className="text-right">
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-500">
+              English / Français
+            </div>
+            <button
+              type="button"
+              onClick={toggleLocale}
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700"
+              aria-label={t('language')}
+            >
+              {locale === 'en' ? 'ENG' : 'FR'}
+            </button>
+          </div>
+        </div>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('email')}</label>
             <input
               type="email"
               autoComplete="email"
@@ -56,7 +75,7 @@ export const SignUp = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('password')}</label>
             <input
               type="password"
               autoComplete="new-password"
@@ -69,7 +88,7 @@ export const SignUp = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('confirmPassword')}</label>
             <input
               type="password"
               autoComplete="new-password"
@@ -88,13 +107,13 @@ export const SignUp = () => {
             disabled={isSubmitting}
             className="w-full rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-400 text-white font-semibold py-2.5 transition-colors"
           >
-            {isSubmitting ? 'Creating Account...' : 'Create Account'}
+            {isSubmitting ? t('creatingAccount') : t('signUp')}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          Already have an account?{' '}
-          <Link to="/signin" className="text-emerald-700 hover:text-emerald-800 font-semibold">Sign In</Link>
+          {t('alreadyHaveAccount')} {' '}
+          <Link to="/signin" className="text-emerald-700 hover:text-emerald-800 font-semibold">{t('signIn')}</Link>
         </p>
       </div>
     </div>
